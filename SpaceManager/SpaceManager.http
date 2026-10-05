@@ -1,0 +1,6 @@
+@SpaceManager_HostAddress = http://localhost:5111
+
+GET {{SpaceManager_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

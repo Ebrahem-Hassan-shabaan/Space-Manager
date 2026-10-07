@@ -41,13 +41,13 @@ namespace SpaceManager.Models;
 public class Workspace
 {
     public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; set; }
     public decimal PricePerHour { get; set; }
     public int Capacity { get; set; }
     public bool IsAvailable { get; set; } = true;
 
     public int WorkspaceTypeId { get; set; }
-    public WorkspaceType WorkspaceType { get; set; } = null!;
+    public WorkspaceType WorkspaceType { get; set; }
 
     public ICollection<WorkspaceBooking> WorkspaceBookings { get; set; } = new List<WorkspaceBooking>();
 }

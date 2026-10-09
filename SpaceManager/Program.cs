@@ -4,6 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using SpaceManager.Services.Implementations;
+using SpaceManager.Services.Interfaces;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +23,25 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Password.RequiredLength = 6;
 }).AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>();
+builder.Services.AddAuthentication(opt =>
+{
+    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme=JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(opt=> {
+    opt.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT Key not found.")))
+    };
+});
+builder.Services.AddScoped<IAuthService, AuthService>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -28,6 +51,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 
 app.UseAuthorization();
 

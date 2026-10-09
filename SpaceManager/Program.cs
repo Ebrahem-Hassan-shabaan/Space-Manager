@@ -60,8 +60,11 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try { 
+    try 
+    { 
         await DbSeeder.SeedRolesAsync(services);
+        await DbSeeder.SeedAdminUserAsync(services);
+        await DbSeeder.SeedDataAsync(services);
     }
     catch (Exception ex)
     {

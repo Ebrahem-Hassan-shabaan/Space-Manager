@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SpaceManager.Models;
 
@@ -19,10 +21,20 @@ public static class DbSeeder
                 await roleManager.CreateAsync(new IdentityRole(roleName));
             }
         }
-        var configurartions = serviceProvider.GetRequiredService<IConfiguration>();
-        var adminEmail = configurartions["DefaultAdmin:Email"];
-        var adminPassword = configurartions["DefaultAdmin:Password"];
-        var adminFullName = configurartions["DefaultAdmin:FullName"];
+    }
+
+    public static async Task SeedAdminUserAsync(IServiceProvider serviceProvider)
+    {
+        var configurations = serviceProvider.GetRequiredService<IConfiguration>();
+        var adminEmail = configurations["DefaultAdmin:Email"];
+        var adminPassword = configurations["DefaultAdmin:Password"];
+        var adminFullName = configurations["DefaultAdmin:FullName"];
+
+        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
+        {
+            return;
+        }
+
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
         if (adminUser == null)
@@ -30,7 +42,7 @@ public static class DbSeeder
             var newAdminUser = new ApplicationUser
             {
                 Email = adminEmail,
-                FullName = adminFullName,
+                FullName = adminFullName ?? "Admin",
                 UserName = adminEmail
             };
             var result = await userManager.CreateAsync(newAdminUser, adminPassword);
@@ -39,5 +51,22 @@ public static class DbSeeder
                 await userManager.AddToRoleAsync(newAdminUser, "Admin");
             }
         }
+    }
+
+    public static async Task SeedDataAsync(IServiceProvider serviceProvider)
+    {
+        var context = serviceProvider.GetRequiredService<AppDbContext>();
+        var workspaceTypes = new[] { "Desk", "Meeting Room", "Private Office", "Conference Room" };
+
+        foreach (var typeName in workspaceTypes)
+        {
+            var exists = await context.WorkspaceTypes.AnyAsync(wt => wt.Name == typeName);
+            if (!exists)
+            {
+                context.WorkspaceTypes.Add(new WorkspaceType { Name = typeName });
+            }
+        }
+
+        await context.SaveChangesAsync();
     }
 }

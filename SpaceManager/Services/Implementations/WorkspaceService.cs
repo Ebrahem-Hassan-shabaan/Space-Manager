@@ -6,15 +6,23 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Services.Implementations;
 
+/// <summary>
+/// Provides business logic implementation for workspace operations.
+/// </summary>
 public class WorkspaceService : IWorkspaceService
 {
     private readonly AppDbContext _context;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WorkspaceService"/> class.
+    /// </summary>
+    /// <param name="context">The application database context.</param>
     public WorkspaceService(AppDbContext context)
     {
         _context = context;
     }
 
+    /// <inheritdoc />
     public async Task<WorkspaceResponseDto> CreateAsync(CreateWorkspaceDto dto)
     {
         var workspace = new Workspace
@@ -31,6 +39,7 @@ public class WorkspaceService : IWorkspaceService
         return (await GetByIdAsync(workspace.Id))!;
     }
 
+    /// <inheritdoc />
     public async Task<bool> DeleteAsync(int id)
     {
         var workspace = await _context.Workspaces.FindAsync(id);
@@ -51,6 +60,7 @@ public class WorkspaceService : IWorkspaceService
         return true;
     }
 
+    /// <inheritdoc />
     public async Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null)
     {
         var query = _context.Workspaces.AsNoTracking().AsQueryable();
@@ -78,6 +88,7 @@ public class WorkspaceService : IWorkspaceService
             .ToListAsync();
     }
 
+    /// <inheritdoc />
     public async Task<WorkspaceResponseDto?> GetByIdAsync(int id)
     {
         return await _context.Workspaces
@@ -95,6 +106,7 @@ public class WorkspaceService : IWorkspaceService
             .FirstOrDefaultAsync();
     }
 
+    /// <inheritdoc />
     public async Task<WorkspaceResponseDto?> UpdateAsync(int id, UpdateWorkspaceDto dto)
     {
         var workspace = await _context.Workspaces.FindAsync(id);

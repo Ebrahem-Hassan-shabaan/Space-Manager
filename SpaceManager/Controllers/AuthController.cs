@@ -1,17 +1,37 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SpaceManager.DTOs.Auth;
 using SpaceManager.Services.Interfaces;
+
 namespace SpaceManager.Controllers;
 
+/// <summary>
+/// Provides API endpoints for user authentication and registration.
+/// </summary>
 [ApiController]
-[Route("api/[Controller]")]
-public class AuthController:ControllerBase
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    public AuthController(IAuthService authService) { 
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuthController"/> class.
+    /// </summary>
+    /// <param name="authService">The authentication service instance.</param>
+    public AuthController(IAuthService authService)
+    {
         _authService = authService;
     }
+
+    /// <summary>
+    /// Registers a new user account.
+    /// </summary>
+    /// <param name="request">The registration request details.</param>
+    /// <returns>An authentication response DTO containing JWT token or error message.</returns>
+    /// <response code="200">User successfully registered.</response>
+    /// <response code="400">If registration failed (e.g. user already exists or validation errors).</response>
     [HttpPost("register")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterDto request)
     {
         var result = await _authService.RegisterAsync(request);
@@ -19,16 +39,20 @@ public class AuthController:ControllerBase
         {
             return BadRequest(result);
         }
+
         return Ok(result);
-
-
     }
 
-
-
-
-
+    /// <summary>
+    /// Authenticates an existing user and issues a JWT token.
+    /// </summary>
+    /// <param name="request">The login credentials.</param>
+    /// <returns>An authentication response DTO containing JWT token or error message.</returns>
+    /// <response code="200">User successfully logged in.</response>
+    /// <response code="400">If credentials are invalid.</response>
     [HttpPost("login")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
         var result = await _authService.LoginAsync(request);
@@ -36,8 +60,7 @@ public class AuthController:ControllerBase
         {
             return BadRequest(result);
         }
+
         return Ok(result);
     }
-    
-
 }

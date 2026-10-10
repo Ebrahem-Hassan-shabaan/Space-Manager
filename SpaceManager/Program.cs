@@ -41,6 +41,7 @@ builder.Services.AddAuthentication(opt =>
     };
 });
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 
 var app = builder.Build();
 

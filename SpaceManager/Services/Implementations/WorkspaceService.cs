@@ -128,4 +128,13 @@ public class WorkspaceService : IWorkspaceService
         await _context.SaveChangesAsync();
         return await GetByIdAsync(workspace.Id);
     }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<WorkspaceTypeResponseDto>> GetWorkspaceTypesAsync()
+    {
+        return await _context.WorkspaceTypes
+            .AsNoTracking()
+            .Select(wt => new WorkspaceTypeResponseDto(wt.Id, wt.Name))
+            .ToListAsync();
+    }
 }

@@ -44,4 +44,10 @@ public interface IWorkspaceService
     /// <returns>True if the workspace was deleted; false if not found.</returns>
     /// <exception cref="InvalidOperationException">Thrown if workspace has existing bookings or maintenance tickets.</exception>
     Task<bool> DeleteAsync(int id);
+
+    /// <summary>
+    /// Retrieves all workspace types available in the system.
+    /// </summary>
+    /// <returns>A collection of workspace type response DTOs.</returns>
+    Task<IEnumerable<WorkspaceTypeResponseDto>> GetWorkspaceTypesAsync();
 }

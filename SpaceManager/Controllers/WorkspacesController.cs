@@ -49,6 +49,20 @@ public class WorkspacesController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves all available workspace types for filtering and selection.
+    /// Accessible without authentication to allow public exploration.
+    /// </summary>
+    /// <returns>A collection of workspace type response DTOs.</returns>
+    /// <response code="200">Returns the list of workspace types.</response>
+    [HttpGet("types")]
+    [ProducesResponseType(typeof(IEnumerable<WorkspaceTypeResponseDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetWorkspaceTypes()
+    {
+        var types = await _workspaceService.GetWorkspaceTypesAsync();
+        return Ok(types);
+    }
+
+    /// <summary>
     /// Retrieves details of a specific workspace by its unique identifier.
     /// </summary>
     /// <param name="id">The unique identifier of the workspace.</param>

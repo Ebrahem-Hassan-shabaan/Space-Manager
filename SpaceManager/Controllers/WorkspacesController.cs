@@ -36,7 +36,7 @@ public class WorkspacesController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<WorkspaceResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAll([FromQuery] int? workspaceTypeId = null, [FromQuery] bool? isAvailable = null)
+    public async Task<IActionResult> GetAll([FromQuery] int? workspaceTypeId = null, [FromQuery] bool? isAvailable = null, [FromQuery] int? maxCapacity = null)
     {
         // Non-admin callers can only view available workspaces
         if (!User.IsInRole("Admin"))
@@ -44,7 +44,7 @@ public class WorkspacesController : ControllerBase
             isAvailable = true;
         }
 
-        var workspaces = await _workspaceService.GetAllAsync(workspaceTypeId, isAvailable);
+        var workspaces = await _workspaceService.GetAllAsync(workspaceTypeId, isAvailable, maxCapacity);
         return Ok(workspaces);
     }
 

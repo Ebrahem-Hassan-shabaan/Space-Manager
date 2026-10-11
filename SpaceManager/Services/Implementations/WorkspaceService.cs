@@ -61,7 +61,7 @@ public class WorkspaceService : IWorkspaceService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null)
+    public async Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null,int? maxCapacity = null)
     {
         var query = _context.Workspaces.AsNoTracking().AsQueryable();
 
@@ -73,6 +73,10 @@ public class WorkspaceService : IWorkspaceService
         if (isAvailable != null)
         {
             query = query.Where(w => w.IsAvailable == isAvailable);
+        }
+        if (maxCapacity != null)
+        {
+             query = query.Where(w => w.Capacity <= maxCapacity);
         }
 
         return await query

@@ -13,7 +13,7 @@ public interface IWorkspaceService
     /// <param name="workspaceTypeId">Optional workspace type ID filter.</param>
     /// <param name="isAvailable">Optional availability status filter.</param>
     /// <returns>A collection of workspace response DTOs.</returns>
-    Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null);
+    Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null,int? maxCapacity=null);
 
     /// <summary>
     /// Retrieves a workspace by its unique identifier.

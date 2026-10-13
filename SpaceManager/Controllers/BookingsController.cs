@@ -110,6 +110,7 @@ public class BookingsController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(BookingResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(BookingConflictResponseDto), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CreateBooking([FromBody] CreateBookingDto dto)
     {
@@ -123,6 +124,10 @@ public class BookingsController : ControllerBase
         {
             var booking = await _bookingService.CreateBookingAsync(userId, dto);
             return CreatedAtAction(nameof(GetBookingById), new { id = booking.Id }, booking);
+        }
+        catch (BookingConflictException ex)
+        {
+            return Conflict(ex.ConflictDetails);
         }
         catch (ArgumentException ex)
         {

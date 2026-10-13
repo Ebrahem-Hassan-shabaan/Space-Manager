@@ -16,7 +16,29 @@
             <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">$@Workspace.PricePerHour / hr</MudChip>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        @if (_conflictDetails != null && _conflictDetails.ConflictingSlots.Any())
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _conflictDetails = null)">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-1">
+                    Scheduling Conflict
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    This workspace is already reserved during the following slot(s):
+                </MudText>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    @foreach (var slot in _conflictDetails.ConflictingSlots)
+                    {
+                        <MudChip T="string" Color="Color.Surface" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.AccessTimeFilled">
+                            @slot.StartTime.ToLocalFromUtc().ToString("h:mm tt") – @slot.EndTime.ToLocalFromUtc().ToString("h:mm tt")
+                        </MudChip>
+                    }
+                </div>
+                <MudText Typo="Typo.caption">
+                    Please adjust your start or end time to avoid these occupied hours.
+                </MudText>
+            </MudAlert>
+        }
+        else if (!string.IsNullOrWhiteSpace(_errorMessage))
         {
             <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
                 @_errorMessage
@@ -97,6 +119,7 @@
     private TimeSpan? _endTime = TimeSpan.FromHours(11);
     private bool _isSubmitting = false;
     private string? _errorMessage;
+    private BookingConflictResponseDto? _conflictDetails;
 
     private double GetCalculatedHours()
     {
@@ -142,6 +165,7 @@
 
         _isSubmitting = true;
         _errorMessage = null;
+        _conflictDetails = null;
 
         try
         {
@@ -153,11 +177,14 @@
             Snackbar.Add($"Reservation confirmed for {Workspace.Name}!", Severity.Success);
             MudDialog.Close(DialogResult.Ok(booking));
         }
+        catch (BookingConflictException ex)
+        {
+            _conflictDetails = ex.ConflictDetails;
+        }
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
         }
-
 
         finally
         {

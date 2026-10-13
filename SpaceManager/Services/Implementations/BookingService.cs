@@ -63,16 +63,27 @@ public class BookingService : IBookingService
             throw new ArgumentException("Start time must be in the future.");
         }
 
-        var hasOverlap = await _context.WorkspaceBookings.AnyAsync(b =>
-            b.WorkspaceId == dto.WorkspaceId &&
-            b.Status == BookingStatus.Confirmed &&
-            dto.StartTime < b.EndTime &&
-            dto.EndTime > b.StartTime
-        );
+        var overlappingSlots = await _context.WorkspaceBookings
+            .AsNoTracking()
+            .Where(b =>
+                b.WorkspaceId == dto.WorkspaceId &&
+                b.Status == BookingStatus.Confirmed &&
+                dto.StartTime < b.EndTime &&
+                dto.EndTime > b.StartTime)
+            .OrderBy(b => b.StartTime)
+            .Select(b => new ConflictingSlotDto(b.StartTime, b.EndTime))
+            .ToListAsync();
 
-        if (hasOverlap)
+        if (overlappingSlots.Count > 0)
         {
-            throw new InvalidOperationException("The workspace is already booked for the selected time range.");
+            var conflictDetails = new BookingConflictResponseDto(
+                Message: "The workspace is already booked for the selected time range.",
+                WorkspaceId: dto.WorkspaceId,
+                RequestedStartTime: dto.StartTime,
+                RequestedEndTime: dto.EndTime,
+                ConflictingSlots: overlappingSlots
+            );
+            throw new BookingConflictException(conflictDetails);
         }
 
         decimal totalCost = CalculateTotalCost(dto.StartTime, dto.EndTime, workspace.PricePerHour);

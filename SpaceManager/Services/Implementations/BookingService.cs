@@ -23,6 +23,23 @@ public class BookingService : IBookingService
         return Math.Round(billableHalfHours * (pricePerHour / 2m), 2);
     }
 
+    /// <inheritdoc />
+    public async Task<int> SealExpiredBookingsAsync()
+    {
+        var now = DateTime.UtcNow;
+        var expiredBookings = await _context.WorkspaceBookings
+            .Where(b => b.Status == BookingStatus.Confirmed && b.EndTime < now)
+            .ToListAsync();
+
+        if (expiredBookings.Count == 0) return 0;
+
+        foreach (var booking in expiredBookings)
+            booking.Status = BookingStatus.Completed;
+
+        await _context.SaveChangesAsync();
+        return expiredBookings.Count;
+    }
+
     public async Task<BookingResponseDto> CreateBookingAsync(string userId, CreateBookingDto dto)
     {
         var workspace = await _context.Workspaces.FirstOrDefaultAsync(w => w.Id == dto.WorkspaceId);
@@ -120,6 +137,9 @@ public class BookingService : IBookingService
 
     public async Task<IEnumerable<BookingResponseDto>> GetUserBookingsAsync(string userId, bool? upcoming = null)
     {
+        // Lazy seal — replace this call with a background job in the future
+        await SealExpiredBookingsAsync();
+
         var query = _context.WorkspaceBookings
             .AsNoTracking()
             .Where(b => b.UserId == userId);
@@ -148,6 +168,9 @@ public class BookingService : IBookingService
 
     public async Task<IEnumerable<BookingResponseDto>> GetAllBookingsAsync(bool? upcoming = null)
     {
+        // Lazy seal — replace this call with a background job in the future
+        await SealExpiredBookingsAsync();
+
         var query = _context.WorkspaceBookings
             .AsNoTracking();
 

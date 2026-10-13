@@ -20,4 +20,11 @@ public interface IAuthService
     /// <param name="loginDto">The login data transfer object.</param>
     /// <returns>An authentication response DTO containing token or error messages.</returns>
     Task<AuthResponseDto> LoginAsync(LoginDto loginDto);
+
+    /// <summary>
+    /// Retrieves the profile of a user by their unique identifier.
+    /// </summary>
+    /// <param name="userId">The unique identifier of the authenticated user.</param>
+    /// <returns>The user profile DTO if found; otherwise, null.</returns>
+    Task<UserProfileDto?> GetProfileAsync(string userId);
 }

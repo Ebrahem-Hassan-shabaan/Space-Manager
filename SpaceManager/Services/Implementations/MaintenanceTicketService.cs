@@ -24,6 +24,19 @@ public class MaintenanceTicketService : IMaintenanceTicketService
             throw new ArgumentException($"Workspace with ID {dto.WorkspaceId} does not exist.");
         }
 
+        var hasBooking = await _context.WorkspaceBookings.AnyAsync(b =>
+            b.UserId == userId &&
+            b.WorkspaceId == dto.WorkspaceId &&
+            b.Status == BookingStatus.Confirmed
+        );
+
+        if (!hasBooking)
+        {
+            throw new InvalidOperationException(
+                "You can only report a maintenance issue for a workspace you have a confirmed booking for."
+            );
+        }
+
         var ticket = new MaintenanceTicket
         {
             UserId = userId,

@@ -7,10 +7,13 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using SpaceManager.Services.Implementations;
 using SpaceManager.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -35,9 +38,13 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddAuthentication(opt =>
 {
-    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
+    opt.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+}).AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, opt =>
+    {
+        opt.Cookie.Name = "SpaceManagerAuthCookie";
+        opt.LoginPath = "/login";
+    })
 .AddJwtBearer(opt =>
 {
     opt.TokenValidationParameters = new TokenValidationParameters

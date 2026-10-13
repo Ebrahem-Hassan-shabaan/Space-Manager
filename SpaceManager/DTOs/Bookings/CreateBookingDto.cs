@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace SpaceManager.DTOs.Bookings;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace SpaceManager.DTOs.Bookings;
 /// <param name="StartTime">The start date and time of the reservation.</param>
 /// <param name="EndTime">The end date and time of the reservation.</param>
 public record CreateBookingDto(
-    int WorkspaceId,
-    DateTime StartTime,
-    DateTime EndTime
+    [Required] int WorkspaceId,
+    [Required] DateTime StartTime,
+    [Required] DateTime EndTime
 );

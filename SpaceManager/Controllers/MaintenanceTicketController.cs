@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SpaceManager.DTOs.Tickets;
@@ -12,7 +13,7 @@ namespace SpaceManager.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/maintenancetickets")]
-[Authorize]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class MaintenanceTicketController : ControllerBase
 {
     private readonly IMaintenanceTicketService _maintenanceTicketService;
@@ -139,7 +140,7 @@ public class MaintenanceTicketController : ControllerBase
     /// <response code="403">If the caller is not an administrator.</response>
     /// <response code="404">If the maintenance ticket is not found.</response>
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -258,7 +259,7 @@ public class MaintenanceTicketController : ControllerBase
     /// <response code="403">If the caller is not an administrator.</response>
     /// <response code="404">If the ticket update is not found on the specified ticket.</response>
     [HttpDelete("{id}/updates/{updateId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

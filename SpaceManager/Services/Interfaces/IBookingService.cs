@@ -68,4 +68,12 @@ public interface IBookingService
     /// <param name="userId">Optional user identifier for ownership validation.</param>
     /// <returns>The booking response DTO if found; otherwise, null.</returns>
     Task<BookingResponseDto?> GetBookingByIdAsync(int bookingId, string? userId = null);
+
+    /// <summary>
+    /// Transitions all past Confirmed bookings to Completed.
+    /// Safe to call lazily on every GET or on a scheduled background job.
+    /// Remove the lazy calls from the GET methods once a background job is wired up.
+    /// </summary>
+    /// <returns>Number of bookings sealed in this call.</returns>
+    Task<int> SealExpiredBookingsAsync();
 }

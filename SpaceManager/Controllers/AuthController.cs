@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SpaceManager.DTOs.Auth;
 using SpaceManager.Services.Interfaces;
@@ -62,5 +65,28 @@ public class AuthController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves the profile of the currently authenticated user.
+    /// </summary>
+    /// <returns>The authenticated user's profile details.</returns>
+    /// <response code="200">Returns the user's profile.</response>
+    /// <response code="401">If the user is unauthenticated.</response>
+    /// <response code="404">If the user profile could not be found.</response>
+    [HttpGet("me")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var profile = await _authService.GetProfileAsync(userId);
+        if (profile == null) return NotFound(new { message = "User profile not found." });
+
+        return Ok(profile);
     }
 }

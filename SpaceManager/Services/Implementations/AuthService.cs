@@ -101,4 +101,18 @@ public class AuthService : IAuthService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    /// <inheritdoc />
+    public async Task<UserProfileDto?> GetProfileAsync(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return null;
+
+        return new UserProfileDto(
+            user.Id,
+            user.FullName,
+            user.Email ?? string.Empty,
+            user.RegisteredAt
+        );
+    }
 }

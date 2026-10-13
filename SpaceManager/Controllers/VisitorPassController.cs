@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SpaceManager.DTOs.VisitorPasses;
@@ -11,7 +12,7 @@ namespace SpaceManager.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/visitorpasses")]
-[Authorize]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class VisitorPassController : ControllerBase
 {
     private readonly IVisitorPassService _visitorPassService;
@@ -131,7 +132,7 @@ public class VisitorPassController : ControllerBase
     /// <response code="403">If the user is not an administrator.</response>
     /// <response code="404">If the visitor pass is not found.</response>
     [HttpPatch("{id}/checkin")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

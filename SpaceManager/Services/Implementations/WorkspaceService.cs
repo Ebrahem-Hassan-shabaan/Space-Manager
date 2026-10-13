@@ -61,7 +61,7 @@ public class WorkspaceService : IWorkspaceService
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null,int? maxCapacity = null)
+    public async Task<IEnumerable<WorkspaceResponseDto>> GetAllAsync(int? workspaceTypeId = null, bool? isAvailable = null, int? maxCapacity = null, decimal? maxPricePerHour = null)
     {
         var query = _context.Workspaces.AsNoTracking().AsQueryable();
 
@@ -74,9 +74,15 @@ public class WorkspaceService : IWorkspaceService
         {
             query = query.Where(w => w.IsAvailable == isAvailable);
         }
+
         if (maxCapacity != null)
         {
-             query = query.Where(w => w.Capacity <= maxCapacity);
+            query = query.Where(w => w.Capacity <= maxCapacity);
+        }
+
+        if (maxPricePerHour != null)
+        {
+            query = query.Where(w => w.PricePerHour <= maxPricePerHour);
         }
 
         return await query

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SpaceManager.DTOs.Workspaces;
@@ -10,7 +11,7 @@ namespace SpaceManager.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class WorkspacesController : ControllerBase
 {
     private readonly IWorkspaceService _workspaceService;
@@ -30,13 +31,15 @@ public class WorkspacesController : ControllerBase
     /// </summary>
     /// <param name="workspaceTypeId">Optional filter by workspace type ID.</param>
     /// <param name="isAvailable">Optional filter for workspace availability (admins only).</param>
+    /// <param name="maxCapacity">Optional filter to return workspaces with capacity at or below this value.</param>
+    /// <param name="maxPricePerHour">Optional filter to return workspaces priced at or below this hourly rate.</param>
     /// <returns>A collection of matching workspace DTOs.</returns>
     /// <response code="200">Returns the matching list of workspaces.</response>
     /// <response code="401">If the request is unauthenticated.</response>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<WorkspaceResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAll([FromQuery] int? workspaceTypeId = null, [FromQuery] bool? isAvailable = null, [FromQuery] int? maxCapacity = null)
+    public async Task<IActionResult> GetAll([FromQuery] int? workspaceTypeId = null, [FromQuery] bool? isAvailable = null, [FromQuery] int? maxCapacity = null, [FromQuery] decimal? maxPricePerHour = null)
     {
         // Non-admin callers can only view available workspaces
         if (!User.IsInRole("Admin"))
@@ -44,7 +47,7 @@ public class WorkspacesController : ControllerBase
             isAvailable = true;
         }
 
-        var workspaces = await _workspaceService.GetAllAsync(workspaceTypeId, isAvailable, maxCapacity);
+        var workspaces = await _workspaceService.GetAllAsync(workspaceTypeId, isAvailable, maxCapacity, maxPricePerHour);
         return Ok(workspaces);
     }
 
@@ -55,6 +58,7 @@ public class WorkspacesController : ControllerBase
     /// <returns>A collection of workspace type response DTOs.</returns>
     /// <response code="200">Returns the list of workspace types.</response>
     [HttpGet("types")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<WorkspaceTypeResponseDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetWorkspaceTypes()
     {
@@ -94,7 +98,7 @@ public class WorkspacesController : ControllerBase
     /// <response code="401">If the request is unauthenticated.</response>
     /// <response code="403">If the user is not in the Admin role.</response>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(typeof(WorkspaceResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -115,7 +119,7 @@ public class WorkspacesController : ControllerBase
     /// <response code="403">If the user is not in the Admin role.</response>
     /// <response code="404">If no workspace exists with the specified ID.</response>
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(typeof(WorkspaceResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -142,7 +146,7 @@ public class WorkspacesController : ControllerBase
     /// <response code="403">If the user is not in the Admin role.</response>
     /// <response code="404">If no workspace exists with the specified ID.</response>
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -37,6 +37,24 @@ public class VisitorPassService : IVisitorPassService
             throw new InvalidOperationException("Visitor is already checked in.");
         }
 
+        var nowUtc = DateTime.UtcNow;
+        var expectedArrivalUtc = visitorPass.ExpectedArrival.Kind == DateTimeKind.Utc
+            ? visitorPass.ExpectedArrival
+            : DateTime.SpecifyKind(visitorPass.ExpectedArrival, DateTimeKind.Utc);
+        var bookingEndUtc = visitorPass.WorkspaceBooking.EndTime.Kind == DateTimeKind.Utc
+            ? visitorPass.WorkspaceBooking.EndTime
+            : DateTime.SpecifyKind(visitorPass.WorkspaceBooking.EndTime, DateTimeKind.Utc);
+
+        if (nowUtc < expectedArrivalUtc)
+        {
+            throw new InvalidOperationException("Cannot check in the visitor before their expected arrival time.");
+        }
+
+        if (nowUtc > bookingEndUtc)
+        {
+            throw new InvalidOperationException("Cannot check in the visitor because the workspace booking has ended.");
+        }
+
         visitorPass.ActualCheckInTime = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
@@ -118,7 +136,9 @@ public class VisitorPassService : IVisitorPassService
                 vp.GuestEmail,
                 vp.ExpectedArrival,
                 vp.ActualCheckInTime,
-                vp.ActualCheckInTime.HasValue
+                vp.ActualCheckInTime.HasValue,
+                vp.WorkspaceBooking.EndTime,
+                vp.WorkspaceBooking.StartTime
             ))
             .ToListAsync();
     }
@@ -139,7 +159,9 @@ public class VisitorPassService : IVisitorPassService
                 vp.GuestEmail,
                 vp.ExpectedArrival,
                 vp.ActualCheckInTime,
-                vp.ActualCheckInTime.HasValue
+                vp.ActualCheckInTime.HasValue,
+                vp.WorkspaceBooking.EndTime,
+                vp.WorkspaceBooking.StartTime
             ))
             .ToListAsync();
     }
@@ -166,7 +188,9 @@ public class VisitorPassService : IVisitorPassService
                 vp.GuestEmail,
                 vp.ExpectedArrival,
                 vp.ActualCheckInTime,
-                vp.ActualCheckInTime.HasValue
+                vp.ActualCheckInTime.HasValue,
+                vp.WorkspaceBooking.EndTime,
+                vp.WorkspaceBooking.StartTime
             ))
             .FirstOrDefaultAsync();
     }

@@ -30,10 +30,12 @@
                               Margin="Margin.Dense" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudSelect T="bool?" Label="Lobby Status" @bind-Value="_filterCheckedIn" Clearable="true" Variant="Variant.Outlined" Dense="true">
-                    <MudSelectItem T="bool?" Value="@((bool?)null)">All Visitors</MudSelectItem>
-                    <MudSelectItem T="bool?" Value="@((bool?)false)">Pending Arrival Only</MudSelectItem>
-                    <MudSelectItem T="bool?" Value="@((bool?)true)">Checked In</MudSelectItem>
+                <MudSelect T="string" Label="Lobby Status" @bind-Value="_statusFilter" Clearable="false" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem Value="@("all")">All Visitors</MudSelectItem>
+                    <MudSelectItem Value="@("ready")">Ready for Check-In (Active Window)</MudSelectItem>
+                    <MudSelectItem Value="@("checkedin")">Checked In</MudSelectItem>
+                    <MudSelectItem Value="@("too_early")">Pending Arrival (Too Early)</MudSelectItem>
+                    <MudSelectItem Value="@("expired")">Booking Ended</MudSelectItem>
                 </MudSelect>
             </MudItem>
         </MudGrid>
@@ -50,7 +52,7 @@
             <MudTh>Guest Details</MudTh>
             <MudTh>Host Member</MudTh>
             <MudTh>Reserved Workspace</MudTh>
-            <MudTh>Expected Arrival</MudTh>
+            <MudTh>Expected Arrival & Window</MudTh>
             <MudTh>Lobby Status</MudTh>
             <MudTh Class="text-right">Front-Desk Action</MudTh>
         </HeaderContent>
@@ -66,8 +68,16 @@
             <MudTd DataLabel="Reserved Workspace">
                 <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@context.WorkspaceName</MudChip>
             </MudTd>
-            <MudTd DataLabel="Expected Arrival">
-                @context.ExpectedArrival.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")
+            <MudTd DataLabel="Expected Arrival & Window">
+                <MudText Typo="Typo.body2" Class="font-weight-medium">
+                    @context.ExpectedArrival.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")
+                </MudText>
+                @if (context.BookingStartTime.HasValue && context.BookingEndTime.HasValue)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Slot: @context.BookingStartTime.ToLocalFromUtc()?.ToString("h:mm tt") – @context.BookingEndTime.ToLocalFromUtc()?.ToString("h:mm tt")
+                    </MudText>
+                }
             </MudTd>
             <MudTd DataLabel="Lobby Status">
                 @if (context.IsCheckedIn)
@@ -76,24 +86,51 @@
                         Checked In (@context.ActualCheckInTime.ToLocalFromUtc()?.ToString("MMM dd, h:mm tt"))
                     </MudChip>
                 }
+                else if (IsTooEarly(context))
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Schedule">
+                        Pending (Opens @context.ExpectedArrival.ToLocalFromUtc().ToString("h:mm tt"))
+                    </MudChip>
+                }
+                else if (IsExpired(context))
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.EventBusy">
+                        Booking Ended
+                    </MudChip>
+                }
                 else
                 {
-                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
-                        Pending Arrival
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.HourglassTop">
+                        Ready for Check-In
                     </MudChip>
                 }
             </MudTd>
             <MudTd DataLabel="Front-Desk Action" Class="text-right">
                 @if (!context.IsCheckedIn)
                 {
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Success"
-                               Size="Size.Small"
-                               StartIcon="@Icons.Material.Filled.Login"
-                               OnClick="@(() => CheckInGuest(context))"
-                               Class="mr-2">
-                        Check In
-                    </MudButton>
+                    @if (CanCheckIn(context))
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Login"
+                                   OnClick="@(() => CheckInGuest(context))"
+                                   Class="mr-2">
+                            Check In
+                        </MudButton>
+                    }
+                    else if (IsTooEarly(context))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mr-2">
+                            Check-in opens at @context.ExpectedArrival.ToLocalFromUtc().ToString("h:mm tt")
+                        </MudText>
+                    }
+                    else if (IsExpired(context))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mr-2">
+                            Booking expired
+                        </MudText>
+                    }
 
                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                    Color="Color.Error"
@@ -116,8 +153,50 @@
 @code {
     private IEnumerable<VisitorPassResponseDto>? _passes;
     private string _searchString = string.Empty;
-    private bool? _filterCheckedIn;
+    private string _statusFilter = "all";
     private bool _isLoading = true;
+
+    private bool CanCheckIn(VisitorPassResponseDto pass)
+    {
+        if (pass.IsCheckedIn) return false;
+        var nowUtc = DateTime.UtcNow;
+        var expectedUtc = pass.ExpectedArrival.Kind == DateTimeKind.Utc
+            ? pass.ExpectedArrival
+            : DateTime.SpecifyKind(pass.ExpectedArrival, DateTimeKind.Utc);
+
+        if (nowUtc < expectedUtc) return false;
+
+        if (pass.BookingEndTime.HasValue)
+        {
+            var endUtc = pass.BookingEndTime.Value.Kind == DateTimeKind.Utc
+                ? pass.BookingEndTime.Value
+                : DateTime.SpecifyKind(pass.BookingEndTime.Value, DateTimeKind.Utc);
+            if (nowUtc > endUtc) return false;
+        }
+
+        return true;
+    }
+
+    private bool IsTooEarly(VisitorPassResponseDto pass)
+    {
+        if (pass.IsCheckedIn) return false;
+        var nowUtc = DateTime.UtcNow;
+        var expectedUtc = pass.ExpectedArrival.Kind == DateTimeKind.Utc
+            ? pass.ExpectedArrival
+            : DateTime.SpecifyKind(pass.ExpectedArrival, DateTimeKind.Utc);
+        return nowUtc < expectedUtc;
+    }
+
+    private bool IsExpired(VisitorPassResponseDto pass)
+    {
+        if (pass.IsCheckedIn) return false;
+        if (!pass.BookingEndTime.HasValue) return false;
+        var nowUtc = DateTime.UtcNow;
+        var endUtc = pass.BookingEndTime.Value.Kind == DateTimeKind.Utc
+            ? pass.BookingEndTime.Value
+            : DateTime.SpecifyKind(pass.BookingEndTime.Value, DateTimeKind.Utc);
+        return nowUtc > endUtc;
+    }
 
     private IEnumerable<VisitorPassResponseDto> FilteredPasses
     {
@@ -135,9 +214,23 @@
                                  p.WorkspaceName.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
             }
 
-            if (_filterCheckedIn.HasValue)
+            if (!string.IsNullOrEmpty(_statusFilter) && _statusFilter != "all")
             {
-                q = q.Where(p => p.IsCheckedIn == _filterCheckedIn.Value);
+                switch (_statusFilter)
+                {
+                    case "ready":
+                        q = q.Where(p => CanCheckIn(p));
+                        break;
+                    case "checkedin":
+                        q = q.Where(p => p.IsCheckedIn);
+                        break;
+                    case "too_early":
+                        q = q.Where(p => IsTooEarly(p));
+                        break;
+                    case "expired":
+                        q = q.Where(p => IsExpired(p));
+                        break;
+                }
             }
 
             return q;

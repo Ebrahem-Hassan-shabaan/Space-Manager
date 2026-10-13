@@ -1,0 +1,211 @@
+@page "/admin/check-in"
+@attribute [Authorize(Roles = "Admin")]
+@inject IVisitorPassService VisitorPassService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Visitor Reception & Check-In</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Facility lobby registry. Log guest arrivals, view host member details, and check in visitors.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadPasses">
+            Refresh Registry
+        </MudButton>
+    </div>
+
+    <!-- Filter Bar -->
+    <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+        <MudGrid Class="align-center">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_searchString"
+                              Placeholder="Search by guest name, email, or host..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="bool?" Label="Lobby Status" @bind-Value="_filterCheckedIn" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">All Visitors</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)false)">Pending Arrival Only</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)true)">Checked In</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Table -->
+    <MudTable Items="@FilteredPasses"
+              Loading="@_isLoading"
+              Hover="true"
+              Elevation="3"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Guest Details</MudTh>
+            <MudTh>Host Member</MudTh>
+            <MudTh>Reserved Workspace</MudTh>
+            <MudTh>Expected Arrival</MudTh>
+            <MudTh>Lobby Status</MudTh>
+            <MudTh Class="text-right">Front-Desk Action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">#@context.Id</MudTd>
+            <MudTd DataLabel="Guest Details">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.GuestName</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.GuestEmail</MudText>
+            </MudTd>
+            <MudTd DataLabel="Host Member">
+                <MudText Typo="Typo.body2" Class="font-weight-medium">@context.HostName</MudText>
+            </MudTd>
+            <MudTd DataLabel="Reserved Workspace">
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@context.WorkspaceName</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Expected Arrival">
+                @context.ExpectedArrival.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")
+            </MudTd>
+            <MudTd DataLabel="Lobby Status">
+                @if (context.IsCheckedIn)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Check">
+                        Checked In (@context.ActualCheckInTime.ToLocalFromUtc()?.ToString("MMM dd, h:mm tt"))
+                    </MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
+                        Pending Arrival
+                    </MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Front-Desk Action" Class="text-right">
+                @if (!context.IsCheckedIn)
+                {
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Login"
+                               OnClick="@(() => CheckInGuest(context))"
+                               Class="mr-2">
+                        Check In
+                    </MudButton>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => ConfirmDeletePass(context))"
+                                   aria-label="Revoke Pass" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Success">Checked In</MudText>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 text-center">No visitor records found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private IEnumerable<VisitorPassResponseDto>? _passes;
+    private string _searchString = string.Empty;
+    private bool? _filterCheckedIn;
+    private bool _isLoading = true;
+
+    private IEnumerable<VisitorPassResponseDto> FilteredPasses
+    {
+        get
+        {
+            if (_passes == null) return Enumerable.Empty<VisitorPassResponseDto>();
+
+            var q = _passes.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                q = q.Where(p => p.GuestName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                                 p.GuestEmail.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                                 p.HostName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                                 p.WorkspaceName.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (_filterCheckedIn.HasValue)
+            {
+                q = q.Where(p => p.IsCheckedIn == _filterCheckedIn.Value);
+            }
+
+            return q;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPasses();
+    }
+
+    private async Task LoadPasses()
+    {
+        _isLoading = true;
+        try
+        {
+            _passes = await VisitorPassService.GetAllVisitorPassesAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CheckInGuest(VisitorPassResponseDto pass)
+    {
+        try
+        {
+            var success = await VisitorPassService.CheckInVisitorPassAsync(pass.Id);
+            if (success)
+            {
+                Snackbar.Add($"Guest {pass.GuestName} checked in successfully!", Severity.Success);
+                await LoadPasses();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Check-in failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDeletePass(VisitorPassResponseDto pass)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Revoke visitor pass for {pass.GuestName} (Host: {pass.HostName})?" },
+            { x => x.ButtonText, "Yes, Revoke" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Revoke Visitor Pass", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await VisitorPassService.DeleteVisitorPassAsync(pass.Id, userId: null);
+                if (success)
+                {
+                    Snackbar.Add("Visitor pass revoked.", Severity.Info);
+                    await LoadPasses();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to revoke: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

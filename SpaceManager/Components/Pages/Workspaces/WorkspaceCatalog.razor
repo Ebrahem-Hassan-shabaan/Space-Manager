@@ -1,0 +1,204 @@
+@page "/workspaces"
+@attribute [AllowAnonymous]
+@inject IWorkspaceService WorkspaceService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Explore Workspaces</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Find the perfect desk, office, or meeting room tailored to your schedule.
+            </MudText>
+        </div>
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AdminPanelSettings" Href="/admin/workspaces">
+                    Open Admin Workspace Editor
+                </MudButton>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    <!-- Filter Card -->
+    <MudPaper Class="pa-4 mb-8 rounded-lg" Elevation="2">
+        <MudGrid Class="align-center">
+            <MudItem xs="12" sm="4" md="3">
+                <MudSelect T="int?" Label="Workspace Type" @bind-Value="_selectedTypeId" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="int?" Value="@((int?)null)">All Types</MudSelectItem>
+                    @if (_types != null)
+                    {
+                        @foreach (var type in _types)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)type.Id)">@type.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="4" md="3">
+                <MudNumericField T="int?" Label="Max Capacity (seats)" @bind-Value="_maxCapacity" Min="1" Max="100" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4" md="3">
+                <MudNumericField T="decimal?" Label="Max Price ($ / hr)" @bind-Value="_maxPrice" Min="0" Max="500" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+
+            <MudItem xs="12" md="3" Class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFilters" StartIcon="@Icons.Material.Filled.FilterAlt" Class="flex-grow-1">
+                    Filter
+                </MudButton>
+                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Secondary" Variant="Variant.Outlined" OnClick="ResetFilters" aria-label="Reset Filters" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Workspace Cards Grid -->
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center my-16">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (_workspaces == null || !_workspaces.Any())
+    {
+        <MudAlert Severity="Severity.Info" Class="my-8">
+            No available workspaces match your current filter criteria. Try adjusting or clearing your filters.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var ws in _workspaces)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudCard Elevation="3" Class="rounded-lg h-100 d-flex flex-column hover-card">
+                        <MudCardContent Class="flex-grow-1">
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">
+                                    @ws.WorkspaceTypeName
+                                </MudChip>
+                                <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="font-weight-bold">
+                                    $@ws.PricePerHour<span style="font-size: 0.75rem; font-weight: normal;"> / hr</span>
+                                </MudText>
+                            </div>
+
+                            <MudText Typo="Typo.h6" Class="font-weight-bold">@ws.Name</MudText>
+
+                            <div class="d-flex align-center gap-2 my-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" Color="Color.Default" />
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Capacity: <b>@ws.Capacity people</b></MudText>
+                            </div>
+
+                            <MudText Typo="Typo.caption" Color="Color.Default" Class="d-block mb-3">
+                                Equipped with fast Wi-Fi, power connectivity, and climate control.
+                            </MudText>
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-4 pt-0">
+                            <AuthorizeView>
+                                <Authorized>
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               FullWidth="true"
+                                               StartIcon="@Icons.Material.Filled.CalendarMonth"
+                                               OnClick="@(() => OpenBookingDialog(ws, context.User))">
+                                        Reserve Space
+                                    </MudButton>
+                                </Authorized>
+                                <NotAuthorized>
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Primary"
+                                               FullWidth="true"
+                                               StartIcon="@Icons.Material.Filled.Login"
+                                               Href="/auth/login">
+                                        Sign In to Book
+                                    </MudButton>
+                                </NotAuthorized>
+                            </AuthorizeView>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "typeId")]
+    public int? QueryTypeId { get; set; }
+
+    private IEnumerable<WorkspaceTypeResponseDto>? _types;
+    private IEnumerable<WorkspaceResponseDto>? _workspaces;
+    private int? _selectedTypeId;
+    private int? _maxCapacity;
+    private decimal? _maxPrice;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedTypeId = QueryTypeId;
+        _types = await WorkspaceService.GetWorkspaceTypesAsync();
+        await LoadWorkspaces();
+    }
+
+    private async Task LoadWorkspaces()
+    {
+        _isLoading = true;
+        try
+        {
+            // Non-admin / public catalog only views available spaces
+            _workspaces = await WorkspaceService.GetAllAsync(
+                workspaceTypeId: _selectedTypeId,
+                isAvailable: true,
+                maxCapacity: _maxCapacity,
+                maxPricePerHour: _maxPrice);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        await LoadWorkspaces();
+    }
+
+    private async Task ResetFilters()
+    {
+        _selectedTypeId = null;
+        _maxCapacity = null;
+        _maxPrice = null;
+        await LoadWorkspaces();
+    }
+
+    private async Task OpenBookingDialog(WorkspaceResponseDto workspace, ClaimsPrincipal user)
+    {
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            Snackbar.Add("Unable to identify logged in account. Please sign in again.", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Bookings.Dialogs.CreateBookingDialog>
+        {
+            { x => x.Workspace, workspace },
+            { x => x.UserId, userId }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Bookings.Dialogs.CreateBookingDialog>("Reserve Workspace", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Navigation.NavigateTo("/bookings/my-bookings");
+        }
+    }
+}

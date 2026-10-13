@@ -1,0 +1,181 @@
+@page "/admin/bookings"
+@attribute [Authorize(Roles = "Admin")]
+@inject IBookingService BookingService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">System Reservations</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Overview of all member reservations, schedule occupancy, and administrative cancellations.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadBookings">
+            Refresh Data
+        </MudButton>
+    </div>
+
+    <!-- Filter Bar -->
+    <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+        <MudGrid Class="align-center">
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_searchString"
+                              Placeholder="Filter by workspace name..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="bool?" Label="Schedule Filter" @bind-Value="_filterUpcoming" Clearable="true" Variant="Variant.Outlined" Dense="true" SelectedValuesChanged="OnFilterChanged">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">All Bookings</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)true)">Upcoming Bookings</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)false)">Past & Ongoing Bookings</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Table -->
+    <MudTable Items="@FilteredBookings"
+              Loading="@_isLoading"
+              Hover="true"
+              Elevation="3"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Workspace</MudTh>
+            <MudTh>Start Time</MudTh>
+            <MudTh>End Time</MudTh>
+            <MudTh>Total Price</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Class="text-right">Admin Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">#@context.Id</MudTd>
+            <MudTd DataLabel="Workspace">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.WorkspaceName</MudText>
+            </MudTd>
+            <MudTd DataLabel="Start Time">@context.StartTime.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudTd>
+            <MudTd DataLabel="End Time">@context.EndTime.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudTd>
+            <MudTd DataLabel="Total Price">$@context.TotalCost.ToString("0.00")</MudTd>
+            <MudTd DataLabel="Status">
+                @switch (context.Status)
+                {
+                    case BookingStatus.Confirmed:
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Confirmed</MudChip>
+                        break;
+                    case BookingStatus.Cancelled:
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelled</MudChip>
+                        break;
+                    case BookingStatus.Completed:
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Completed</MudChip>
+                        break;
+                    default:
+                        <MudChip T="string" Size="Size.Small">@context.Status</MudChip>
+                        break;
+                }
+            </MudTd>
+            <MudTd DataLabel="Admin Actions" Class="text-right">
+                @if (context.Status == BookingStatus.Confirmed)
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="@(() => ConfirmAdminCancel(context))">
+                        Cancel Booking
+                    </MudButton>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 text-center">No bookings found matching filter criteria.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private IEnumerable<BookingResponseDto>? _bookings;
+    private string _searchString = string.Empty;
+    private bool? _filterUpcoming;
+    private bool _isLoading = true;
+
+    private IEnumerable<BookingResponseDto> FilteredBookings
+    {
+        get
+        {
+            if (_bookings == null) return Enumerable.Empty<BookingResponseDto>();
+
+            var q = _bookings.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                q = q.Where(b => b.WorkspaceName.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return q;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookings();
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        _isLoading = true;
+        try
+        {
+            _bookings = await BookingService.GetAllBookingsAsync(_filterUpcoming);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConfirmAdminCancel(BookingResponseDto booking)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to administratively cancel booking #{booking.Id} for '{booking.WorkspaceName}' scheduled on {booking.StartTime.ToLocalTime():MMM dd, yyyy}?" },
+            { x => x.ButtonText, "Admin Cancel" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Administrative Cancellation", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                // Passing null for userId executes admin cancellation regardless of owner
+                var success = await BookingService.CancelBookingAsync(booking.Id, userId: null);
+                if (success)
+                {
+                    Snackbar.Add($"Booking #{booking.Id} cancelled by administrator.", Severity.Success);
+                    await LoadBookings();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Cancellation failed: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

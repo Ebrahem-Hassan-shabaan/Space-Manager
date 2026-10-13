@@ -1,0 +1,282 @@
+@page "/"
+@attribute [AllowAnonymous]
+@inject IWorkspaceService WorkspaceService
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <!-- Hero Section -->
+    <MudPaper Class="pa-8 pa-md-16 rounded-xl mud-theme-primary text-center" Elevation="4" Style="background: linear-gradient(135deg, #1E3A8A 0%, #0D9488 100%); color: white;">
+        <MudChip T="string" Color="Color.Surface" Size="Size.Small" Variant="Variant.Filled" Class="mb-4 text-primary font-weight-bold">
+            SPACE MANAGEMENT EVOLVED
+        </MudChip>
+        <MudText Typo="Typo.h2" Class="font-weight-bold mb-4" Style="line-height: 1.2;">
+            SpaceManager
+        </MudText>
+        <MudText Typo="Typo.h6" Class="mb-8 mx-auto" Style="max-width: 800px; opacity: 0.95; font-weight: 300;">
+            A premier workspace management platform built for modern hybrid teams and professionals. 
+            Enjoy conflict-free room reservations, instant digital visitor passes, and transparent maintenance tracking — all in one unified hub.
+        </MudText>
+
+        <div class="d-flex justify-center flex-wrap gap-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Surface" Size="Size.Large" Href="/workspaces" Class="text-primary font-weight-bold px-6">
+                Explore Workspaces
+            </MudButton>
+
+            <AuthorizeView>
+                <NotAuthorized>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Surface" Size="Size.Large" Href="/auth/register" Class="px-6">
+                        Get Started Free
+                    </MudButton>
+                </NotAuthorized>
+                <Authorized>
+                    @if (context.User.IsInRole("Admin"))
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" Href="/admin/dashboard" Class="px-6">
+                            Open Admin Console
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large" Href="/bookings/my-bookings" Class="px-6">
+                            My Reservations
+                        </MudButton>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </MudPaper>
+
+    <!-- Key Capabilities / Value Props -->
+    <MudGrid Class="mt-12">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4 h-100 rounded-lg">
+                <MudCardContent>
+                    <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Bolt" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-2">Instant Reservations</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Book hot desks, private pods, or large conference rooms with real-time schedule conflict prevention and instant price quotes.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4 h-100 rounded-lg">
+                <MudCardContent>
+                    <MudAvatar Color="Color.Secondary" Size="Size.Large" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Badge" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-2">Visitor Lobby Passes</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Host guests with ease. Generate visitor passes linked to your confirmed bookings with one-click receptionist check-in.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4 h-100 rounded-lg">
+                <MudCardContent>
+                    <MudAvatar Color="Color.Warning" Size="Size.Large" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Handyman" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-2">24/7 Support Tickets</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Report facility or IT issues directly. Track live status updates and collaborate with facility technicians through real-time comment threads.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Class="pa-4 h-100 rounded-lg">
+                <MudCardContent>
+                    <MudAvatar Color="Color.Success" Size="Size.Large" Class="mb-4">
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" />
+                    </MudAvatar>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-2">Role-Based Control</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Tailored workflows for facility administrators and members. Full control over pricing, inventory, security, and member access.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Public Section 1: Workspace Types Showcase (No Login Required) -->
+    <div class="mt-16">
+        <div class="text-center mb-8">
+            <MudText Typo="Typo.overline" Color="Color.Primary" Class="font-weight-bold">EXPLORE OUR OPTIONS</MudText>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Available Workspace Types</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-1">
+                Browse our diverse catalog of spaces designed for high productivity, privacy, and collaboration.
+            </MudText>
+        </div>
+
+        @if (_loadingTypes)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (_workspaceTypes == null || !_workspaceTypes.Any())
+        {
+            <MudAlert Severity="Severity.Info">No workspace types configured currently.</MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var type in _workspaceTypes)
+                {
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Elevation="3" Class="rounded-lg h-100 hover-elevation">
+                            <MudCardHeader>
+                                <CardHeaderAvatar>
+                                    <MudAvatar Color="Color.Primary" Variant="Variant.Outlined">
+                                        <MudIcon Icon="@GetTypeIcon(type.Name)" />
+                                    </MudAvatar>
+                                </CardHeaderAvatar>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">@type.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Publicly Available Category</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    @GetTypeDescription(type.Name)
+                                </MudText>
+                            </MudCardContent>
+                            <MudCardActions>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="@($"/workspaces?typeId={type.Id}")">
+                                    View Spaces
+                                </MudButton>
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </div>
+
+    <!-- Public Section 2: Featured Available Spaces -->
+    <div class="mt-16">
+        <div class="d-flex justify-space-between align-center mb-6">
+            <div>
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold">FEATURED SPACES</MudText>
+                <MudText Typo="Typo.h4" Class="font-weight-bold">Ready to Book Today</MudText>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/workspaces">
+                Browse All Workspaces
+            </MudButton>
+        </div>
+
+        @if (_loadingSpaces)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Color="Color.Secondary" Indeterminate="true" />
+            </div>
+        }
+        else if (_featuredSpaces == null || !_featuredSpaces.Any())
+        {
+            <MudAlert Severity="Severity.Normal">All workspaces are currently in use or being configured.</MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var space in _featuredSpaces.Take(4))
+                {
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Elevation="3" Class="rounded-lg h-100 d-flex flex-column">
+                            <MudCardContent Class="flex-grow-1">
+                                <div class="d-flex justify-space-between align-center mb-2">
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined">Available</MudChip>
+                                    <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="font-weight-bold">
+                                        $@space.PricePerHour<span style="font-size: 0.75rem; font-weight: normal;"> / hr</span>
+                                    </MudText>
+                                </div>
+                                <MudText Typo="Typo.h6" Class="font-weight-bold">@space.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
+                                    Type: @space.WorkspaceTypeName
+                                </MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                                    Comfortable, ergonomic workspace with high-speed fiber Wi-Fi, power connectivity, and climate control.
+                                </MudText>
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Group" Size="Size.Small" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.caption">Capacity: <b>@space.Capacity people</b></MudText>
+                                </div>
+                            </MudCardContent>
+                            <MudCardActions>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Href="@($"/workspaces")">
+                                    Reserve Space
+                                </MudButton>
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </div>
+
+    <!-- Final Call to Action Footer Card -->
+    <MudPaper Class="mt-16 pa-8 rounded-xl text-center mud-theme-secondary" Elevation="2">
+        <MudText Typo="Typo.h4" Class="font-weight-bold mb-2">Experience Frictionless Coworking</MudText>
+        <MudText Typo="Typo.body1" Class="mb-6">
+            Join SpaceManager today to unlock immediate bookings, priority access, and seamless digital guest hospitality.
+        </MudText>
+        <div class="d-flex justify-center gap-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Surface" Class="text-secondary font-weight-bold px-6" Href="/auth/register">
+                Register as Member
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Surface" Class="px-6" Href="/auth/login">
+                Sign In to Account
+            </MudButton>
+        </div>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private IEnumerable<WorkspaceTypeResponseDto>? _workspaceTypes;
+    private IEnumerable<WorkspaceResponseDto>? _featuredSpaces;
+    private bool _loadingTypes = true;
+    private bool _loadingSpaces = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _workspaceTypes = await WorkspaceService.GetWorkspaceTypesAsync();
+        }
+        finally
+        {
+            _loadingTypes = false;
+        }
+
+        try
+        {
+            // Direct service call for public available spaces
+            _featuredSpaces = await WorkspaceService.GetAllAsync(isAvailable: true);
+        }
+        finally
+        {
+            _loadingSpaces = false;
+        }
+    }
+
+    private string GetTypeIcon(string typeName) => typeName.ToLower() switch
+    {
+        "desk" => Icons.Material.Filled.Desk,
+        "meeting room" => Icons.Material.Filled.Groups,
+        "private office" => Icons.Material.Filled.MeetingRoom,
+        "conference room" => Icons.Material.Filled.Tv,
+        _ => Icons.Material.Filled.Business
+    };
+
+    private string GetTypeDescription(string typeName) => typeName.ToLower() switch
+    {
+        "desk" => "Ergonomic dedicated hot-desks equipped with high-speed internet, power points, and quiet zones.",
+        "meeting room" => "Collaborative spaces equipped with conference screens, whiteboards, and video-call hardware.",
+        "private office" => "Enclosed, sound-dampened secure office suites tailored for focused executives and small teams.",
+        "conference room" => "Large-scale presentation suites with projector displays, seating up to 20+ attendees.",
+        _ => "Flexible workspace designed for productivity and focus."
+    };
+}

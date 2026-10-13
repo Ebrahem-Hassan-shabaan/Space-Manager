@@ -1,0 +1,257 @@
+@namespace SpaceManager.Components.Pages.Tickets.Dialogs
+@inject IMaintenanceTicketService MaintenanceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex justify-space-between align-center">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Build" Color="Color.Primary" Class="mr-2" />
+                <MudText Typo="Typo.h6">Ticket #@TicketId: @_ticket?.IssueTitle</MudText>
+            </div>
+            @if (_ticket != null)
+            {
+                <div class="d-flex gap-2 mr-6">
+                    @GetEmergencyChip(_ticket.EmergencyLevel)
+                    @GetStatusChip(_ticket.Status)
+                </div>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (_ticket == null)
+        {
+            <MudAlert Severity="Severity.Error">Ticket not found.</MudAlert>
+        }
+        else
+        {
+            <!-- Ticket Info Header -->
+            <MudPaper Class="pa-4 mb-4 rounded-lg" Elevation="1" Style="background-color: var(--mud-palette-background-grey);">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Affected Workspace</MudText>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@_ticket.WorkspaceName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Reported By</MudText>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@_ticket.ReportedByUserName (@_ticket.ReportedAt.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt"))</MudText>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Problem Description</MudText>
+                        <MudText Typo="Typo.body2" Class="mt-1">@_ticket.Description</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Admin Status Switcher -->
+            @if (IsAdmin)
+            {
+                <MudPaper Class="pa-3 mb-4 rounded-lg d-flex align-center justify-space-between flex-wrap gap-2" Elevation="2">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Manage Status (Admin):</MudText>
+                    <div class="d-flex gap-2">
+                        <MudButton Size="Size.Small" Variant="@(_ticket.Status == TicketStatus.Open ? Variant.Filled : Variant.Outlined)" Color="Color.Info" OnClick="@(() => ChangeStatus(TicketStatus.Open))">Open</MudButton>
+                        <MudButton Size="Size.Small" Variant="@(_ticket.Status == TicketStatus.InProgress ? Variant.Filled : Variant.Outlined)" Color="Color.Warning" OnClick="@(() => ChangeStatus(TicketStatus.InProgress))">In Progress</MudButton>
+                        <MudButton Size="Size.Small" Variant="@(_ticket.Status == TicketStatus.Resolved ? Variant.Filled : Variant.Outlined)" Color="Color.Success" OnClick="@(() => ChangeStatus(TicketStatus.Resolved))">Resolved</MudButton>
+                        <MudButton Size="Size.Small" Variant="@(_ticket.Status == TicketStatus.Closed ? Variant.Filled : Variant.Outlined)" Color="Color.Dark" OnClick="@(() => ChangeStatus(TicketStatus.Closed))">Closed</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            <!-- Discussion & Updates Thread -->
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Discussion Thread</MudText>
+            
+            <div style="max-height: 280px; overflow-y: auto;" class="pr-2 mb-4">
+                @if (_ticket.Updates == null || !_ticket.Updates.Any())
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="font-italic py-4 text-center">
+                        No comments yet. Start the conversation below.
+                    </MudText>
+                }
+                else
+                {
+                    @foreach (var update in _ticket.Updates.OrderBy(u => u.Timestamp))
+                    {
+                        <MudPaper Elevation="1" Class="@($"pa-3 mb-2 rounded-lg {(update.IsAdminReply ? "border-solid border-2 mud-border-primary" : "")}")">
+                            <div class="d-flex justify-space-between align-center mb-1">
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@update.UserName</MudText>
+                                    @if (update.IsAdminReply)
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Staff / Admin</MudChip>
+                                    }
+                                </div>
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @update.Timestamp.ToLocalFromUtc().ToString("MMM dd, h:mm tt")
+                                    </MudText>
+                                    @if (IsAdmin)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteComment(update.Id))" aria-label="Delete Comment" />
+                                    }
+                                </div>
+                            </div>
+                            <MudText Typo="Typo.body2">@update.Message</MudText>
+                        </MudPaper>
+                    }
+                }
+            </div>
+
+            <!-- Post New Comment Box -->
+            @if (_ticket.Status != TicketStatus.Closed)
+            {
+                <div class="d-flex gap-2 align-center">
+                    <MudTextField @bind-Value="_newComment"
+                                  Placeholder="Type a reply or update note..."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  Class="flex-grow-1" />
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="PostComment"
+                               Disabled="@(string.IsNullOrWhiteSpace(_newComment) || _isPostingComment)">
+                        Send
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Normal" Dense="true">This ticket is closed. Discussion thread is archived.</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Default" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public int TicketId { get; set; }
+
+    [Parameter]
+    public string UserId { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsAdmin { get; set; }
+
+    private TicketResponseDto? _ticket;
+    private string _newComment = string.Empty;
+    private bool _isLoading = true;
+    private bool _isPostingComment = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTicket();
+    }
+
+    private async Task LoadTicket()
+    {
+        _isLoading = true;
+        try
+        {
+            _ticket = await MaintenanceService.GetMaintenanceTicketByIdAsync(TicketId, IsAdmin ? null : UserId);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task PostComment()
+    {
+        if (string.IsNullOrWhiteSpace(_newComment)) return;
+
+        _isPostingComment = true;
+        try
+        {
+            var dto = new AddTicketUpdateDto(_newComment);
+            await MaintenanceService.AddTicketUpdateAsync(TicketId, UserId, IsAdmin, dto);
+            _newComment = string.Empty;
+            await LoadTicket();
+            Snackbar.Add("Comment posted.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isPostingComment = false;
+        }
+    }
+
+    private async Task ChangeStatus(TicketStatus newStatus)
+    {
+        if (_ticket == null || _ticket.Status == newStatus) return;
+
+        try
+        {
+            var dto = new UpdateTicketStatusDto(newStatus);
+            var success = await MaintenanceService.UpdateMaintenanceTicketStatusAsync(TicketId, dto);
+            if (success)
+            {
+                Snackbar.Add($"Ticket status updated to {newStatus}.", Severity.Success);
+                await LoadTicket();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Status update failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteComment(int updateId)
+    {
+        try
+        {
+            var success = await MaintenanceService.DeleteTicketUpdateAsync(TicketId, updateId);
+            if (success)
+            {
+                Snackbar.Add("Comment deleted.", Severity.Info);
+                await LoadTicket();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to delete comment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private RenderFragment GetEmergencyChip(TicketEmergencyLevel level) => __builder =>
+    {
+        var color = level switch
+        {
+            TicketEmergencyLevel.Low => Color.Success,
+            TicketEmergencyLevel.Medium => Color.Info,
+            TicketEmergencyLevel.High => Color.Warning,
+            TicketEmergencyLevel.Critical => Color.Error,
+            _ => Color.Default
+        };
+        <MudChip T="string" Color="@color" Size="Size.Small" Variant="Variant.Outlined">@level Priority</MudChip>
+    };
+
+    private RenderFragment GetStatusChip(TicketStatus status) => __builder =>
+    {
+        var color = status switch
+        {
+            TicketStatus.Open => Color.Info,
+            TicketStatus.InProgress => Color.Warning,
+            TicketStatus.Resolved => Color.Success,
+            TicketStatus.Closed => Color.Dark,
+            _ => Color.Default
+        };
+        <MudChip T="string" Color="@color" Size="Size.Small" Variant="Variant.Filled">@status</MudChip>
+    };
+
+    private void Close() => MudDialog.Close();
+}

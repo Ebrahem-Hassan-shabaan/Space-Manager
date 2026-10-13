@@ -1,0 +1,40 @@
+@namespace SpaceManager.Components.Shared
+
+<MudCard Elevation="3" Class="rounded-lg pa-4 h-100">
+    <MudCardContent Class="d-flex align-center justify-space-between">
+        <div>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="text-uppercase font-weight-bold">
+                @Title
+            </MudText>
+            <MudText Typo="Typo.h4" Class="font-weight-bold mt-1">
+                @Value
+            </MudText>
+            @if (!string.IsNullOrWhiteSpace(Description))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Default" Class="mt-1">
+                    @Description
+                </MudText>
+            }
+        </div>
+        <MudAvatar Color="@AvatarColor" Variant="Variant.Filled" Size="Size.Large" Class="ml-2">
+            <MudIcon Icon="@Icon" Size="Size.Medium" />
+        </MudAvatar>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Value { get; set; } = "0";
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public string Icon { get; set; } = Icons.Material.Filled.Info;
+
+    [Parameter]
+    public Color AvatarColor { get; set; } = Color.Primary;
+}

@@ -1,0 +1,234 @@
+@page "/bookings/my-bookings"
+@attribute [Authorize]
+@inject IBookingService BookingService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">My Reservations</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Manage your confirmed bookings, invite visiting guests, or modify reservations.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/workspaces">
+            Book Another Space
+        </MudButton>
+    </div>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6" ActivePanelIndexChanged="OnTabChanged">
+        <MudTabPanel Text="Upcoming Bookings" Icon="@Icons.Material.Filled.Upcoming">
+            @RenderBookingsList()
+        </MudTabPanel>
+        <MudTabPanel Text="Past & Completed" Icon="@Icons.Material.Filled.History">
+            @RenderBookingsList()
+        </MudTabPanel>
+        <MudTabPanel Text="All Bookings" Icon="@Icons.Material.Filled.CalendarMonth">
+            @RenderBookingsList()
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private string? _userId;
+    private IEnumerable<BookingResponseDto>? _bookings;
+    private bool _isLoading = true;
+    private int _currentTabIndex = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        await LoadBookings();
+    }
+
+    private async Task OnTabChanged(int index)
+    {
+        _currentTabIndex = index;
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        _isLoading = true;
+        try
+        {
+            bool? upcomingFilter = _currentTabIndex switch
+            {
+                0 => true,   // Upcoming
+                1 => false,  // Past
+                _ => null    // All
+            };
+
+            _bookings = await BookingService.GetUserBookingsAsync(_userId, upcomingFilter);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private RenderFragment RenderBookingsList() => __builder =>
+    {
+        if (_isLoading)
+        {
+            <div class="d-flex justify-center my-8">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (_bookings == null || !_bookings.Any())
+        {
+            <MudAlert Severity="Severity.Info" Class="my-4">
+                No reservations found in this section.
+            </MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var b in _bookings)
+                {
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="3" Class="rounded-lg h-100 d-flex flex-column">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <div class="d-flex justify-space-between align-center">
+                                        <MudText Typo="Typo.h6" Class="font-weight-bold">@b.WorkspaceName</MudText>
+                                        @GetStatusChip(b.Status)
+                                    </div>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent Class="flex-grow-1 pt-0">
+                                <div class="d-flex align-center gap-2 mb-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Color="Color.Primary" />
+                                    <MudText Typo="Typo.body2">
+                                        <b>@b.StartTime.ToLocalFromUtc().ToString("MMM dd, yyyy")</b>:
+                                        @b.StartTime.ToLocalFromUtc().ToString("h:mm tt") - @b.EndTime.ToLocalFromUtc().ToString("h:mm tt")
+                                    </MudText>
+                                </div>
+                                <div class="d-flex align-center gap-2 mb-4">
+                                    <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Small" Color="Color.Secondary" />
+                                    <MudText Typo="Typo.body2">
+                                        Total Cost: <b>$@b.TotalCost.ToString("0.00")</b>
+                                    </MudText>
+                                </div>
+
+                                @if (b.Status == BookingStatus.Confirmed && b.StartTime <= DateTime.UtcNow.AddHours(1) && b.StartTime > DateTime.UtcNow)
+                                {
+                                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                                        Starts in under 1 hour. Cancellation window is closed.
+                                    </MudAlert>
+                                }
+                            </MudCardContent>
+                            <MudCardActions Class="pa-4 pt-0 d-flex justify-space-between flex-wrap gap-2">
+                                @if (b.Status == BookingStatus.Confirmed && b.EndTime > DateTime.UtcNow)
+                                {
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Secondary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Badge"
+                                               OnClick="@(() => OpenVisitorPassDialog(b))">
+                                        Invite Visitor
+                                    </MudButton>
+
+                                    @if (CanCancel(b))
+                                    {
+                                        <MudButton Variant="Variant.Text"
+                                                   Color="Color.Error"
+                                                   Size="Size.Small"
+                                                   StartIcon="@Icons.Material.Filled.Cancel"
+                                                   OnClick="@(() => ConfirmCancelBooking(b))">
+                                            Cancel Reservation
+                                        </MudButton>
+                                    }
+                                }
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    };
+
+    private bool CanCancel(BookingResponseDto booking)
+    {
+        return booking.Status == BookingStatus.Confirmed && booking.StartTime > DateTime.UtcNow.AddHours(1);
+    }
+
+    private RenderFragment GetStatusChip(BookingStatus status) => __builder =>
+    {
+        switch (status)
+        {
+            case BookingStatus.Confirmed:
+                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Confirmed</MudChip>
+                break;
+            case BookingStatus.Cancelled:
+                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelled</MudChip>
+                break;
+            case BookingStatus.Completed:
+                <MudChip T="string" Color="Color.Default" Size="Size.Small" Variant="Variant.Filled">Completed</MudChip>
+                break;
+            default:
+                <MudChip T="string" Size="Size.Small">@status</MudChip>
+                break;
+        }
+    };
+
+    private async Task OpenVisitorPassDialog(BookingResponseDto booking)
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.VisitorPasses.Dialogs.CreateVisitorPassDialog>
+        {
+            { x => x.WorkspaceBookingId, booking.Id },
+            { x => x.BookingStart, booking.StartTime },
+            { x => x.BookingEnd, booking.EndTime },
+            { x => x.WorkspaceName, booking.WorkspaceName },
+            { x => x.UserId, _userId }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.VisitorPasses.Dialogs.CreateVisitorPassDialog>("Issue Visitor Pass", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Navigation.NavigateTo("/visitors/my-passes");
+        }
+    }
+
+    private async Task ConfirmCancelBooking(BookingResponseDto booking)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to cancel your reservation for {booking.WorkspaceName} on {booking.StartTime.ToLocalFromUtc():MMM dd, yyyy}?" },
+            { x => x.ButtonText, "Yes, Cancel Booking" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Cancel Reservation", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await BookingService.CancelBookingAsync(booking.Id, _userId);
+                if (success)
+                {
+                    Snackbar.Add("Reservation cancelled.", Severity.Info);
+                    await LoadBookings();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to cancel: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

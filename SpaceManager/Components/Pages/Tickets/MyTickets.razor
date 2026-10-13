@@ -1,0 +1,239 @@
+@page "/tickets/my-tickets"
+@attribute [Authorize]
+@inject IMaintenanceTicketService MaintenanceService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">My Support Tickets</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Track issues reported for your workspaces, review facility technician notes, and post updates.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ReportProblem" OnClick="OpenCreateTicketDialog">
+            Report New Issue
+        </MudButton>
+    </div>
+
+    <!-- Filters -->
+    <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+        <MudGrid Class="align-center">
+            <MudItem xs="12" sm="5">
+                <MudSelect T="TicketStatus?" Label="Status Filter" @bind-Value="_selectedStatus" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="TicketStatus?" Value="@((TicketStatus?)null)">All Statuses</MudSelectItem>
+                    <MudSelectItem T="TicketStatus?" Value="@((TicketStatus?)TicketStatus.Open)">Open</MudSelectItem>
+                    <MudSelectItem T="TicketStatus?" Value="@((TicketStatus?)TicketStatus.InProgress)">In Progress</MudSelectItem>
+                    <MudSelectItem T="TicketStatus?" Value="@((TicketStatus?)TicketStatus.Resolved)">Resolved</MudSelectItem>
+                    <MudSelectItem T="TicketStatus?" Value="@((TicketStatus?)TicketStatus.Closed)">Closed</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="5">
+                <MudSelect T="TicketEmergencyLevel?" Label="Priority Filter" @bind-Value="_selectedPriority" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="TicketEmergencyLevel?" Value="@((TicketEmergencyLevel?)null)">All Priorities</MudSelectItem>
+                    <MudSelectItem T="TicketEmergencyLevel?" Value="@((TicketEmergencyLevel?)TicketEmergencyLevel.Low)">Low</MudSelectItem>
+                    <MudSelectItem T="TicketEmergencyLevel?" Value="@((TicketEmergencyLevel?)TicketEmergencyLevel.Medium)">Medium</MudSelectItem>
+                    <MudSelectItem T="TicketEmergencyLevel?" Value="@((TicketEmergencyLevel?)TicketEmergencyLevel.High)">High</MudSelectItem>
+                    <MudSelectItem T="TicketEmergencyLevel?" Value="@((TicketEmergencyLevel?)TicketEmergencyLevel.Critical)">Critical</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="LoadTickets">
+                    Apply
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Tickets List -->
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center my-16">
+            <MudProgressCircular Color="Color.Warning" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (_tickets == null || !_tickets.Any())
+    {
+        <MudAlert Severity="Severity.Info" Class="my-4">
+            No support tickets match the selected filters.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var ticket in _tickets)
+            {
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="3" Class="rounded-lg h-100 d-flex flex-column">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">@ticket.IssueTitle</MudText>
+                                    @GetStatusChip(ticket.Status)
+                                </div>
+                                <div class="d-flex align-center gap-2">
+                                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@ticket.WorkspaceName</MudChip>
+                                    @GetEmergencyChip(ticket.EmergencyLevel)
+                                </div>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent Class="flex-grow-1 pt-0">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                                @ticket.Description
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                Reported on @ticket.ReportedAt.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")
+                            </MudText>
+                        </MudCardContent>
+                        <MudCardActions Class="pa-4 pt-0 d-flex justify-space-between align-center">
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Forum"
+                                       OnClick="@(() => OpenTicketDetails(ticket))">
+                                View Discussion (@ticket.Updates?.Count() updates)
+                            </MudButton>
+
+                            @if (ticket.Status == TicketStatus.Open)
+                            {
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Delete"
+                                           OnClick="@(() => ConfirmDeleteTicket(ticket))">
+                                    Cancel Ticket
+                                </MudButton>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private string? _userId;
+    private IEnumerable<TicketResponseDto>? _tickets;
+    private TicketStatus? _selectedStatus;
+    private TicketEmergencyLevel? _selectedPriority;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        await LoadTickets();
+    }
+
+    private async Task LoadTickets()
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        _isLoading = true;
+        try
+        {
+            _tickets = await MaintenanceService.GetUserMaintenanceTicketsAsync(_userId, _selectedStatus, _selectedPriority);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateTicketDialog()
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Tickets.Dialogs.CreateTicketDialog>
+        {
+            { x => x.UserId, _userId }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Tickets.Dialogs.CreateTicketDialog>("Report Maintenance Ticket", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadTickets();
+        }
+    }
+
+    private async Task OpenTicketDetails(TicketResponseDto ticket)
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Tickets.Dialogs.TicketDetailsDialog>
+        {
+            { x => x.TicketId, ticket.Id },
+            { x => x.UserId, _userId },
+            { x => x.IsAdmin, false }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Tickets.Dialogs.TicketDetailsDialog>("Ticket Details", parameters);
+        await dialog.Result;
+        await LoadTickets();
+    }
+
+    private async Task ConfirmDeleteTicket(TicketResponseDto ticket)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to cancel ticket #{ticket.Id} ({ticket.IssueTitle})?" },
+            { x => x.ButtonText, "Yes, Cancel Ticket" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Cancel Support Ticket", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await MaintenanceService.DeleteMaintenanceTicketAsync(ticket.Id, _userId);
+                if (success)
+                {
+                    Snackbar.Add("Ticket cancelled.", Severity.Info);
+                    await LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private RenderFragment GetEmergencyChip(TicketEmergencyLevel level) => __builder =>
+    {
+        var color = level switch
+        {
+            TicketEmergencyLevel.Low => Color.Success,
+            TicketEmergencyLevel.Medium => Color.Info,
+            TicketEmergencyLevel.High => Color.Warning,
+            TicketEmergencyLevel.Critical => Color.Error,
+            _ => Color.Default
+        };
+        <MudChip T="string" Color="@color" Size="Size.Small" Variant="Variant.Outlined">@level Priority</MudChip>
+    };
+
+    private RenderFragment GetStatusChip(TicketStatus status) => __builder =>
+    {
+        var color = status switch
+        {
+            TicketStatus.Open => Color.Info,
+            TicketStatus.InProgress => Color.Warning,
+            TicketStatus.Resolved => Color.Success,
+            TicketStatus.Closed => Color.Dark,
+            _ => Color.Default
+        };
+        <MudChip T="string" Color="@color" Size="Size.Small" Variant="Variant.Filled">@status</MudChip>
+    };
+}

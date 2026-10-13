@@ -1,0 +1,208 @@
+@page "/admin/workspaces"
+@attribute [Authorize(Roles = "Admin")]
+@inject IWorkspaceService WorkspaceService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Facility Workspaces</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Manage room inventory, seat capacities, hourly rates, and maintenance availability.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenEditDialog(null))">
+            Add New Workspace
+        </MudButton>
+    </div>
+
+    <!-- Filter Bar -->
+    <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+        <MudGrid Class="align-center">
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_searchString"
+                              Placeholder="Search workspace by name..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="int?" Label="Filter Category" @bind-Value="_filterTypeId" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="int?" Value="@((int?)null)">All Categories</MudSelectItem>
+                    @if (_types != null)
+                    {
+                        @foreach (var type in _types)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)type.Id)">@type.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="bool?" Label="Availability Status" @bind-Value="_filterAvailable" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">All Availability</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)true)">Available Only</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)false)">Unavailable / Maintenance</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Table -->
+    <MudTable Items="@FilteredWorkspaces"
+              Loading="@_isLoading"
+              Hover="true"
+              Elevation="3"
+              Class="rounded-lg"
+              Dense="false">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Capacity</MudTh>
+            <MudTh>Price / Hour</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Class="text-right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">#@context.Id</MudTd>
+            <MudTd DataLabel="Name">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.Name</MudText>
+            </MudTd>
+            <MudTd DataLabel="Category">
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">
+                    @context.WorkspaceTypeName
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Capacity">@context.Capacity seats</MudTd>
+            <MudTd DataLabel="Price / Hour">$@context.PricePerHour.ToString("0.00")</MudTd>
+            <MudTd DataLabel="Status">
+                @if (context.IsAvailable)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Available</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Unavailable</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Actions" Class="text-right">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditDialog(context))" aria-label="Edit Workspace" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => ConfirmDelete(context))" aria-label="Delete Workspace" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 text-center">No workspaces found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private IEnumerable<WorkspaceResponseDto>? _workspaces;
+    private IEnumerable<WorkspaceTypeResponseDto>? _types;
+    private string _searchString = string.Empty;
+    private int? _filterTypeId;
+    private bool? _filterAvailable;
+    private bool _isLoading = true;
+
+    private IEnumerable<WorkspaceResponseDto> FilteredWorkspaces
+    {
+        get
+        {
+            if (_workspaces == null) return Enumerable.Empty<WorkspaceResponseDto>();
+
+            var q = _workspaces.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                q = q.Where(w => w.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (_filterTypeId.HasValue)
+            {
+                q = q.Where(w => w.WorkspaceTypeId == _filterTypeId.Value);
+            }
+
+            if (_filterAvailable.HasValue)
+            {
+                q = q.Where(w => w.IsAvailable == _filterAvailable.Value);
+            }
+
+            return q;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _types = await WorkspaceService.GetWorkspaceTypesAsync();
+        await LoadWorkspaces();
+    }
+
+    private async Task LoadWorkspaces()
+    {
+        _isLoading = true;
+        try
+        {
+            // Admin loads all workspaces (isAvailable = null)
+            _workspaces = await WorkspaceService.GetAllAsync(isAvailable: null);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenEditDialog(WorkspaceResponseDto? workspace)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Admin.Dialogs.WorkspaceEditDialog>
+        {
+            { x => x.ExistingWorkspace, workspace }
+        };
+
+        var title = workspace == null ? "Create Workspace" : $"Edit {workspace.Name}";
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Admin.Dialogs.WorkspaceEditDialog>(title, parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadWorkspaces();
+        }
+    }
+
+    private async Task ConfirmDelete(WorkspaceResponseDto workspace)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to delete workspace '{workspace.Name}'? This operation cannot be undone." },
+            { x => x.ButtonText, "Yes, Delete" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Workspace", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await WorkspaceService.DeleteAsync(workspace.Id);
+                if (success)
+                {
+                    Snackbar.Add($"Workspace '{workspace.Name}' deleted.", Severity.Success);
+                    await LoadWorkspaces();
+                }
+                else
+                {
+                    Snackbar.Add("Workspace not found.", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Cannot delete workspace: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

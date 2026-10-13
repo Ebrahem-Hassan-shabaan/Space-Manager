@@ -1,0 +1,203 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Roles = "Admin")]
+@inject IWorkspaceService WorkspaceService
+@inject IBookingService BookingService
+@inject IVisitorPassService VisitorPassService
+@inject IMaintenanceTicketService MaintenanceService
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Administrator Operations</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Live operational metrics across workspaces, member reservations, lobby visitors, and facility maintenance.
+            </MudText>
+        </div>
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Desk" Href="/admin/workspaces">
+                Inventory
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Badge" Href="/admin/check-in">
+                Front Desk
+            </MudButton>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center my-16">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else
+    {
+        <!-- KPI Cards Grid -->
+        <MudGrid Class="mb-8">
+            <MudItem xs="12" sm="6" md="3">
+                <StatCard Title="Total Workspaces"
+                          Value="@_totalWorkspaces.ToString()"
+                          Description="@($"{_availableWorkspaces} currently available")"
+                          Icon="@Icons.Material.Filled.MeetingRoom"
+                          AvatarColor="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <StatCard Title="Active Bookings"
+                          Value="@_activeBookingsCount.ToString()"
+                          Description="Upcoming scheduled reservations"
+                          Icon="@Icons.Material.Filled.EventAvailable"
+                          AvatarColor="Color.Info" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <StatCard Title="Pending Visitors"
+                          Value="@_pendingVisitorsCount.ToString()"
+                          Description="Awaiting reception check-in"
+                          Icon="@Icons.Material.Filled.Badge"
+                          AvatarColor="Color.Warning" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <StatCard Title="Open Tickets"
+                          Value="@_openTicketsCount.ToString()"
+                          Description="Pending staff resolution"
+                          Icon="@Icons.Material.Filled.Handyman"
+                          AvatarColor="Color.Error" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- Quick Summary Grids -->
+        <MudGrid>
+            <!-- Upcoming Bookings Preview -->
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="3" Class="rounded-lg h-100">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.h6" Class="font-weight-bold">Upcoming Reservations</MudText>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Href="/admin/bookings">View All</MudButton>
+                            </div>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-0">
+                        @if (_recentBookings == null || !_recentBookings.Any())
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="py-4 text-center">No upcoming reservations.</MudText>
+                        }
+                        else
+                        {
+                            <MudList T="string" Dense="true">
+                                @foreach (var b in _recentBookings.Take(4))
+                                {
+                                    <MudListItem T="string">
+                                        <div class="d-flex justify-space-between align-center">
+                                            <div>
+                                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@b.WorkspaceName</MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                    @b.StartTime.ToLocalFromUtc().ToString("MMM dd, h:mm tt") - @b.EndTime.ToLocalFromUtc().ToString("h:mm tt")
+                                                </MudText>
+                                            </div>
+                                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined">
+                                                $@b.TotalCost.ToString("0.00")
+                                            </MudChip>
+                                        </div>
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <!-- Urgent Maintenance Tickets Preview -->
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="3" Class="rounded-lg h-100">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.h6" Class="font-weight-bold">Maintenance Queue</MudText>
+                                <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" Href="/admin/tickets">Triage Center</MudButton>
+                            </div>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Class="pt-0">
+                        @if (_activeTickets == null || !_activeTickets.Any())
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="py-4 text-center">All maintenance tickets are resolved!</MudText>
+                        }
+                        else
+                        {
+                            <MudList T="string" Dense="true">
+                                @foreach (var t in _activeTickets.Take(4))
+                                {
+                                    <MudListItem T="string">
+                                        <div class="d-flex justify-space-between align-center">
+                                            <div>
+                                                <div class="d-flex align-center gap-2">
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@t.IssueTitle</MudText>
+                                                    <MudChip T="string" Color="@(t.EmergencyLevel == TicketEmergencyLevel.Critical ? Color.Error : Color.Warning)" Size="Size.Small" Variant="Variant.Filled">
+                                                        @t.EmergencyLevel
+                                                    </MudChip>
+                                                </div>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                    Room: @t.WorkspaceName • Reported by: @t.ReportedByUserName
+                                                </MudText>
+                                            </div>
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">
+                                                @t.Status
+                                            </MudChip>
+                                        </div>
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private int _totalWorkspaces = 0;
+    private int _availableWorkspaces = 0;
+    private int _activeBookingsCount = 0;
+    private int _pendingVisitorsCount = 0;
+    private int _openTicketsCount = 0;
+
+    private IEnumerable<BookingResponseDto>? _recentBookings;
+    private IEnumerable<TicketResponseDto>? _activeTickets;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardMetrics();
+    }
+
+    private async Task LoadDashboardMetrics()
+    {
+        _isLoading = true;
+        try
+        {
+            // Direct service calls across all 4 services
+            var workspaces = await WorkspaceService.GetAllAsync(isAvailable: null);
+            _totalWorkspaces = workspaces.Count();
+            _availableWorkspaces = workspaces.Count(w => w.IsAvailable);
+
+            var bookings = await BookingService.GetAllBookingsAsync(upcoming: true);
+            _recentBookings = bookings;
+            _activeBookingsCount = bookings.Count(b => b.Status == BookingStatus.Confirmed);
+
+            var passes = await VisitorPassService.GetAllVisitorPassesAsync();
+            _pendingVisitorsCount = passes.Count(p => !p.IsCheckedIn);
+
+            var tickets = await MaintenanceService.GetAllMaintenanceTicketsAsync();
+            _activeTickets = tickets.Where(t => t.Status == TicketStatus.Open || t.Status == TicketStatus.InProgress);
+            _openTicketsCount = _activeTickets.Count();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

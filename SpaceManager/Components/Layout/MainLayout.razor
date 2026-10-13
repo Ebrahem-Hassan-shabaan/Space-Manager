@@ -1,0 +1,108 @@
+@namespace SpaceManager.Components.Layout
+@inherits LayoutComponentBase
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.Medium" CloseButton="true" CloseOnEscapeKey="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary" Dense="false">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        
+        <MudLink Href="/" Underline="Underline.None" Color="Color.Inherit" Class="d-flex align-center ml-2">
+            <MudIcon Icon="@Icons.Material.Filled.Hub" Size="Size.Large" Class="mr-2" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold">SpaceManager</MudText>
+        </MudLink>
+
+        <MudSpacer />
+
+        <!-- Theme Toggle -->
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                       Color="Color.Inherit" 
+                       OnClick="@ToggleDarkMode" 
+                       aria-label="@(_isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode")" />
+
+        <!-- Auth Header Section -->
+        <AuthorizeView>
+            <Authorized>
+                <div class="d-none d-sm-flex align-center ml-4">
+                    <MudText Typo="Typo.body2" Class="mr-3 font-weight-medium">@context.User.Identity?.Name</MudText>
+                    @if (context.User.IsInRole("Admin"))
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Admin</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled">Member</MudChip>
+                    }
+                </div>
+                <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="ml-2">
+                    <MudMenuItem Icon="@Icons.Material.Filled.Person">Signed in as @context.User.Identity?.Name</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error" OnClick="Logout">Sign Out</MudMenuItem>
+                </MudMenu>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Href="/auth/login" Variant="Variant.Outlined" Color="Color.Inherit" Class="ml-2" Size="Size.Small">Sign In</MudButton>
+                <MudButton Href="/auth/register" Variant="Variant.Filled" Color="Color.Secondary" Class="ml-2" Size="Size.Small">Register</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="DrawerVariant.Responsive">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="px-4 px-sm-6 pb-8" Style="padding-top: calc(var(--mud-appbar-height, 64px) + 1.5rem) !important;">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = false;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#1E3A8A",          // Deep Blue
+            Secondary = "#0D9488",        // Modern Teal
+            AppbarBackground = "#1E3A8A",
+            Background = "#F8FAFC",
+            Surface = "#FFFFFF",
+            DrawerBackground = "#FFFFFF",
+            DrawerText = "#1E293B",
+            TextPrimary = "#0F172A",
+            TextSecondary = "#475569",
+            Success = "#16A34A",
+            Warning = "#D97706",
+            Error = "#DC2626",
+            Info = "#2563EB"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#3B82F6",
+            Secondary = "#14B8A6",
+            AppbarBackground = "#0F172A",
+            Background = "#0B0F19",
+            Surface = "#111827",
+            DrawerBackground = "#111827",
+            DrawerText = "#E2E8F0",
+            TextPrimary = "#F8FAFC",
+            TextSecondary = "#94A3B8"
+        }
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+
+    private async Task Logout()
+    {
+        await AuthStateProvider.MarkUserAsLoggedOutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

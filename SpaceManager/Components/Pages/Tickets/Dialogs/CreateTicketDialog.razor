@@ -1,0 +1,143 @@
+@namespace SpaceManager.Components.Pages.Tickets.Dialogs
+@inject IMaintenanceTicketService MaintenanceService
+@inject IWorkspaceService WorkspaceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.ReportProblem" Color="Color.Warning" Class="mr-2" />
+            <MudText Typo="Typo.h6">Report Maintenance Issue</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudSelect T="int" Label="Affected Workspace" @bind-Value="_selectedWorkspaceId" Variant="Variant.Outlined" Required="true" Class="mb-3">
+            @if (_workspaces != null)
+            {
+                @foreach (var ws in _workspaces)
+                {
+                    <MudSelectItem Value="@ws.Id">@ws.Name (@ws.WorkspaceTypeName)</MudSelectItem>
+                }
+            }
+        </MudSelect>
+
+        <MudTextField @bind-Value="_issueTitle"
+                      Label="Issue Summary"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudSelect T="TicketEmergencyLevel" Label="Urgency / Emergency Level" @bind-Value="_emergencyLevel" Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem Value="@TicketEmergencyLevel.Low">Low - Minor cosmetic or non-blocking</MudSelectItem>
+            <MudSelectItem Value="@TicketEmergencyLevel.Medium">Medium - Normal attention needed</MudSelectItem>
+            <MudSelectItem Value="@TicketEmergencyLevel.High">High - Significant disruption to work</MudSelectItem>
+            <MudSelectItem Value="@TicketEmergencyLevel.Critical">Critical - Safety or total outage</MudSelectItem>
+        </MudSelect>
+
+        <MudTextField @bind-Value="_description"
+                      Label="Detailed Description"
+                      Variant="Variant.Outlined"
+                      Lines="4"
+                      Required="true"
+                      Class="mb-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Warning"
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <MudText>Submitting...</MudText>
+            }
+            else
+            {
+                <MudText>Submit Ticket</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public string UserId { get; set; } = string.Empty;
+
+    [Parameter]
+    public int? PreselectedWorkspaceId { get; set; }
+
+    private IEnumerable<WorkspaceResponseDto>? _workspaces;
+    private int _selectedWorkspaceId;
+    private string _issueTitle = string.Empty;
+    private string _description = string.Empty;
+    private TicketEmergencyLevel _emergencyLevel = TicketEmergencyLevel.Medium;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _workspaces = await WorkspaceService.GetAllAsync();
+        if (PreselectedWorkspaceId.HasValue)
+        {
+            _selectedWorkspaceId = PreselectedWorkspaceId.Value;
+        }
+        else if (_workspaces != null && _workspaces.Any())
+        {
+            _selectedWorkspaceId = _workspaces.First().Id;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (_selectedWorkspaceId <= 0)
+        {
+            _errorMessage = "Please select a workspace.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_issueTitle))
+        {
+            _errorMessage = "Issue summary is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_description))
+        {
+            _errorMessage = "Detailed description is required.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var dto = new CreateTicketDto(_selectedWorkspaceId, _issueTitle, _description, _emergencyLevel);
+            var ticket = await MaintenanceService.CreateMaintenanceTicketAsync(UserId, dto);
+
+            Snackbar.Add("Maintenance ticket reported successfully!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(ticket));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

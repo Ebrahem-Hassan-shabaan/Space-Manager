@@ -1,0 +1,169 @@
+@namespace SpaceManager.Components.Pages.Bookings.Dialogs
+@inject IBookingService BookingService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.h6">Reserve @Workspace.Name</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div class="mb-4">
+            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@Workspace.WorkspaceTypeName</MudChip>
+            <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">Capacity: @Workspace.Capacity people</MudChip>
+            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">$@Workspace.PricePerHour / hr</MudChip>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+
+        <MudDatePicker Label="Reservation Date"
+                       @bind-Date="_selectedDate"
+                       MinDate="DateTime.Today"
+                       Variant="Variant.Outlined"
+                       Class="mb-4" />
+
+        <MudGrid Class="mb-4">
+            <MudItem xs="6">
+                <MudTimePicker Label="Start Time"
+                               @bind-Time="_startTime"
+                               Variant="Variant.Outlined"
+                               AmPm="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTimePicker Label="End Time"
+                               @bind-Time="_endTime"
+                               Variant="Variant.Outlined"
+                               AmPm="true" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- Calculated Duration & Cost Preview -->
+        <MudPaper Elevation="1" Class="pa-4 rounded-lg mud-theme-primary" Style="opacity: 0.95;">
+            <div class="d-flex justify-space-between align-center">
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Surface">Estimated Duration</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Surface" Class="font-weight-bold">
+                        @GetCalculatedHours().ToString("0.##") Hours
+                    </MudText>
+                </div>
+                <div class="text-right">
+                    <MudText Typo="Typo.caption" Color="Color.Surface">Total Cost</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Surface" Class="font-weight-bold">
+                        $@GetCalculatedCost().ToString("0.00")
+                    </MudText>
+                </div>
+            </div>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="SubmitBooking"
+                   Disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <MudText>Confirming...</MudText>
+            }
+            else
+            {
+                <MudText>Confirm Reservation</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public WorkspaceResponseDto Workspace { get; set; } = default!;
+
+    [Parameter]
+    public string UserId { get; set; } = string.Empty;
+
+    private DateTime? _selectedDate = DateTime.Today;
+    private TimeSpan? _startTime = TimeSpan.FromHours(9);
+    private TimeSpan? _endTime = TimeSpan.FromHours(11);
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    private double GetCalculatedHours()
+    {
+        if (_startTime == null || _endTime == null) return 0;
+        var diff = (_endTime.Value - _startTime.Value).TotalHours;
+        return diff > 0 ? diff : 0;
+    }
+
+    private decimal GetCalculatedCost()
+    {
+        var hours = (decimal)GetCalculatedHours();
+        return hours * Workspace.PricePerHour;
+    }
+
+    private async Task SubmitBooking()
+    {
+        if (_selectedDate == null || _startTime == null || _endTime == null)
+        {
+            _errorMessage = "Please specify date, start time, and end time.";
+            return;
+        }
+
+        var localStart = _selectedDate.Value.Date.Add(_startTime.Value);
+        var localEnd = _selectedDate.Value.Date.Add(_endTime.Value);
+
+        if (localStart <= DateTime.Now)
+        {
+            _errorMessage = "Reservation start time must be in the future.";
+            return;
+        }
+
+        if (localEnd <= localStart)
+        {
+            _errorMessage = "End time must be after start time.";
+            return;
+        }
+
+        if ((localEnd - localStart).TotalHours < 0.5)
+        {
+            _errorMessage = "Reservation must be at least 30 minutes.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var startUtc = localStart.ToUtcFromLocal();
+            var endUtc = localEnd.ToUtcFromLocal();
+            var dto = new CreateBookingDto(Workspace.Id, startUtc, endUtc);
+            var booking = await BookingService.CreateBookingAsync(UserId, dto);
+
+            Snackbar.Add($"Reservation confirmed for {Workspace.Name}!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(booking));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+
+
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

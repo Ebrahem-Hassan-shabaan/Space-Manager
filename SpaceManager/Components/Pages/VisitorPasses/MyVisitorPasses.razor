@@ -1,0 +1,163 @@
+@page "/visitors/my-passes"
+@attribute [Authorize]
+@inject IVisitorPassService VisitorPassService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">My Guest Passes</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Manage visitor badges and track lobby check-in arrivals for your upcoming reservations.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bookmark" Href="/bookings/my-bookings">
+            View Active Bookings
+        </MudButton>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center my-16">
+            <MudProgressCircular Color="Color.Secondary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else if (_passes == null || !_passes.Any())
+    {
+        <MudAlert Severity="Severity.Info" Class="my-4">
+            You haven't issued any visitor passes yet. Go to <MudLink Href="/bookings/my-bookings"><b>My Reservations</b></MudLink> to invite a guest to an active booking.
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var pass in _passes)
+            {
+                <MudItem xs="12" md="6" lg="4">
+                    <MudCard Elevation="3" Class="rounded-lg h-100 d-flex flex-column">
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="@(pass.IsCheckedIn ? Color.Success : Color.Secondary)" Variant="Variant.Filled">
+                                    <MudIcon Icon="@(pass.IsCheckedIn ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Person)" />
+                                </MudAvatar>
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6" Class="font-weight-bold">@pass.GuestName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@pass.GuestEmail</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent Class="flex-grow-1 pt-0">
+                            <div class="d-flex justify-space-between align-center mb-3">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Assigned Room</MudText>
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@pass.WorkspaceName</MudChip>
+                            </div>
+
+                            <div class="d-flex justify-space-between align-center mb-3">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Expected Arrival</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-medium">
+                                    @pass.ExpectedArrival.ToLocalFromUtc().ToString("MMM dd, h:mm tt")
+                                </MudText>
+                            </div>
+
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Lobby Status</MudText>
+                                @if (pass.IsCheckedIn)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">
+                                        Checked In (@pass.ActualCheckInTime.ToLocalFromUtc()?.ToString("MMM dd, h:mm tt"))
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">
+                                        Pending Arrival
+                                    </MudChip>
+                                }
+                            </div>
+                        </MudCardContent>
+                        <MudCardActions Class="pa-4 pt-0">
+                            @if (!pass.IsCheckedIn)
+                            {
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Error"
+                                           FullWidth="true"
+                                           StartIcon="@Icons.Material.Filled.DeleteForever"
+                                           OnClick="@(() => ConfirmRevokePass(pass))">
+                                    Revoke Visitor Pass
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Success" Class="text-center w-100">
+                                    Guest is on-premises. Pass cannot be revoked.
+                                </MudText>
+                            }
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private string? _userId;
+    private IEnumerable<VisitorPassResponseDto>? _passes;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        await LoadPasses();
+    }
+
+    private async Task LoadPasses()
+    {
+        if (string.IsNullOrEmpty(_userId)) return;
+
+        _isLoading = true;
+        try
+        {
+            _passes = await VisitorPassService.GetUserVisitorPassesAsync(_userId);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConfirmRevokePass(VisitorPassResponseDto pass)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to revoke the visitor pass for {pass.GuestName}?" },
+            { x => x.ButtonText, "Yes, Revoke Pass" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Revoke Visitor Pass", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await VisitorPassService.DeleteVisitorPassAsync(pass.Id, _userId);
+                if (success)
+                {
+                    Snackbar.Add($"Visitor pass for {pass.GuestName} revoked.", Severity.Info);
+                    await LoadPasses();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to revoke: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

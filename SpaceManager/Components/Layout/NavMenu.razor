@@ -1,0 +1,67 @@
+@namespace SpaceManager.Components.Layout
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<MudNavMenu Class="mud-width-full">
+    <!-- Public & General Navigation -->
+    <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">General</MudText>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">SpaceManager Home</MudNavLink>
+    <MudNavLink Href="/workspaces" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.MeetingRoom">Explore Workspaces</MudNavLink>
+
+    <!-- User / Member Section -->
+    <AuthorizeView Roles="User">
+        <Authorized>
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Member Portal</MudText>
+            <MudNavLink Href="/bookings/my-bookings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Bookmark">My Bookings</MudNavLink>
+            <MudNavLink Href="/visitors/my-passes" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Badge">My Visitor Passes</MudNavLink>
+            <MudNavLink Href="/tickets/my-tickets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReportProblem">My Support Tickets</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Administrator Section -->
+    <AuthorizeView Roles="Admin">
+        <Authorized>
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Admin Console</MudText>
+            <MudNavLink Href="/admin/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">System Dashboard</MudNavLink>
+            <MudNavLink Href="/admin/workspaces" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Desk">Manage Workspaces</MudNavLink>
+            <MudNavLink Href="/admin/bookings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CalendarMonth">All Bookings</MudNavLink>
+            <MudNavLink Href="/admin/check-in" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Visitor Check-In</MudNavLink>
+            <MudNavLink Href="/admin/tickets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Handyman">Maintenance Center</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Account Actions -->
+    <MudDivider Class="my-3" />
+    <AuthorizeView>
+        <Authorized>
+            <div class="px-4 py-2">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Signed in as</MudText>
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.User.Identity?.Name</MudText>
+                @if (context.User.IsInRole("Admin"))
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Class="mt-1">Administrator</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1">Member</MudChip>
+                }
+            </div>
+            <MudNavLink OnClick="HandleLogout" Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">Sign Out</MudNavLink>
+        </Authorized>
+        <NotAuthorized>
+            <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Account</MudText>
+            <MudNavLink Href="/auth/login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Login">Sign In</MudNavLink>
+            <MudNavLink Href="/auth/register" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PersonAdd">Register</MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</MudNavMenu>
+
+@code {
+    private async Task HandleLogout()
+    {
+        await AuthStateProvider.MarkUserAsLoggedOutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

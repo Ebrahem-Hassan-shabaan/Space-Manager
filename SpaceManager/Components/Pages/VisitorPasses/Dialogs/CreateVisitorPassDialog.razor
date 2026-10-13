@@ -1,0 +1,152 @@
+@namespace SpaceManager.Components.Pages.VisitorPasses.Dialogs
+@inject IVisitorPassService VisitorPassService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Secondary" Class="mr-2" />
+            <MudText Typo="Typo.h6">Issue Guest Pass - @WorkspaceName</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            Guest arrival must fall within the reservation slot: <br />
+            <b>@BookingStart.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</b> to <b>@BookingEnd.ToLocalFromUtc().ToString("h:mm tt")</b>
+        </MudAlert>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudTextField @bind-Value="_guestName"
+                      Label="Guest Full Name"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudTextField @bind-Value="_guestEmail"
+                      Label="Guest Email Address"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Email"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudDatePicker Label="Arrival Date"
+                               @bind-Date="_arrivalDate"
+                               Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTimePicker Label="Arrival Time"
+                               @bind-Time="_arrivalTime"
+                               Variant="Variant.Outlined"
+                               AmPm="true" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Secondary"
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <MudText>Issuing Pass...</MudText>
+            }
+            else
+            {
+                <MudText>Issue Visitor Pass</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public int WorkspaceBookingId { get; set; }
+
+    [Parameter]
+    public DateTime BookingStart { get; set; }
+
+    [Parameter]
+    public DateTime BookingEnd { get; set; }
+
+    [Parameter]
+    public string WorkspaceName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string UserId { get; set; } = string.Empty;
+
+    private string _guestName = string.Empty;
+    private string _guestEmail = string.Empty;
+    private DateTime? _arrivalDate;
+    private TimeSpan? _arrivalTime;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        var localStart = BookingStart.ToLocalFromUtc();
+        _arrivalDate = localStart.Date;
+        _arrivalTime = localStart.TimeOfDay;
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_guestName) || string.IsNullOrWhiteSpace(_guestEmail))
+        {
+            _errorMessage = "Guest name and email are required.";
+            return;
+        }
+
+        if (_arrivalDate == null || _arrivalTime == null)
+        {
+            _errorMessage = "Arrival date and time must be specified.";
+            return;
+        }
+
+        var localArrival = _arrivalDate.Value.Date.Add(_arrivalTime.Value);
+        var arrivalUtc = localArrival.ToUtcFromLocal();
+
+        var startUtc = BookingStart.Kind == DateTimeKind.Utc ? BookingStart : DateTime.SpecifyKind(BookingStart, DateTimeKind.Utc);
+        var endUtc = BookingEnd.Kind == DateTimeKind.Utc ? BookingEnd : DateTime.SpecifyKind(BookingEnd, DateTimeKind.Utc);
+
+        if (arrivalUtc < startUtc || arrivalUtc > endUtc)
+        {
+            _errorMessage = $"Expected arrival ({localArrival:h:mm tt}) must fall within the reservation window ({BookingStart.ToLocalFromUtc():h:mm tt} - {BookingEnd.ToLocalFromUtc():h:mm tt}).";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var dto = new CreateVisitorPassDto(WorkspaceBookingId, _guestName, _guestEmail, arrivalUtc);
+            var pass = await VisitorPassService.CreateVisitorPassAsync(UserId, dto);
+
+            Snackbar.Add($"Visitor pass issued for {_guestName}!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(pass));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

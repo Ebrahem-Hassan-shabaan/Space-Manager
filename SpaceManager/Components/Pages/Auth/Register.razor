@@ -1,0 +1,168 @@
+@page "/auth/register"
+@attribute [AllowAnonymous]
+@inject IAuthService AuthService
+@inject UserManager<ApplicationUser> UserManager
+@inject CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-12 mb-16">
+    <MudCard Elevation="4" Class="pa-6 pa-sm-8 rounded-xl">
+        <div class="text-center mb-6">
+            <MudAvatar Color="Color.Secondary" Size="Size.Large" Class="mb-3 mx-auto">
+                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" />
+            </MudAvatar>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Join SpaceManager</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                Create your member account to begin reserving workspaces
+            </MudText>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-6" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <EditForm Model="@_model" OnValidSubmit="HandleRegister">
+            <DataAnnotationsValidator />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.FirstName"
+                                  Label="First Name"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.LastName"
+                                  Label="Last Name"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  Class="mb-2" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField @bind-Value="_model.Email"
+                          Label="Email Address"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Email"
+                          Required="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Email"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="_model.Password"
+                          Label="Password (min 6 characters, 1 digit)"
+                          Variant="Variant.Outlined"
+                          InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                          Required="true"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(_showPassword ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)"
+                          OnAdornmentClick="@(() => _showPassword = !_showPassword)"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="_confirmPassword"
+                          Label="Confirm Password"
+                          Variant="Variant.Outlined"
+                          InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                          Required="true"
+                          Class="mb-6" />
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       Disabled="@_isSubmitting"
+                       Class="py-3 font-weight-bold">
+                @if (_isSubmitting)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Creating Account...</MudText>
+                }
+                else
+                {
+                    <MudText>Complete Registration</MudText>
+                }
+            </MudButton>
+        </EditForm>
+
+        <MudDivider Class="my-6" />
+
+        <div class="text-center">
+            <MudText Typo="Typo.body2">
+                Already have an account? 
+                <MudLink Href="/auth/login" Color="Color.Primary" Class="font-weight-bold ml-1">
+                    Sign in here
+                </MudLink>
+            </MudText>
+        </div>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private RegisterFormModel _model = new();
+    private string _confirmPassword = string.Empty;
+    private bool _showPassword = false;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    private class RegisterFormModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    private async Task HandleRegister()
+    {
+        if (_model.Password != _confirmPassword)
+        {
+            _errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.Password) || _model.Password.Length < 6)
+        {
+            _errorMessage = "Password must be at least 6 characters.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var registerDto = new RegisterDto(_model.FirstName, _model.LastName, _model.Email, _model.Password);
+            var result = await AuthService.RegisterAsync(registerDto);
+
+            if (!result.Success)
+            {
+                _errorMessage = result.Message;
+                return;
+            }
+
+            // Successfully registered! Log in automatically
+            var createdUser = await UserManager.FindByEmailAsync(_model.Email);
+            if (createdUser != null)
+            {
+                await AuthStateProvider.MarkUserAsAuthenticatedAsync(createdUser.Id);
+            }
+
+            Snackbar.Add("Registration successful! Welcome to SpaceManager.", Severity.Success);
+            Navigation.NavigateTo("/workspaces");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

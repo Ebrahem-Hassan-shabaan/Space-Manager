@@ -1,0 +1,169 @@
+@namespace SpaceManager.Components.Pages.Admin.Dialogs
+@inject IWorkspaceService WorkspaceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@(ExistingWorkspace == null ? Icons.Material.Filled.AddBusiness : Icons.Material.Filled.Edit)" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.h6">@(ExistingWorkspace == null ? "Add New Workspace" : $"Edit Workspace: {ExistingWorkspace.Name}")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudTextField @bind-Value="_name"
+                      Label="Workspace Name / Room Number"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudSelect T="int" Label="Workspace Category" @bind-Value="_workspaceTypeId" Variant="Variant.Outlined" Required="true" Class="mb-3">
+            @if (_types != null)
+            {
+                @foreach (var type in _types)
+                {
+                    <MudSelectItem Value="@type.Id">@type.Name</MudSelectItem>
+                }
+            }
+        </MudSelect>
+
+        <MudGrid Class="mb-3">
+            <MudItem xs="6">
+                <MudNumericField T="int"
+                                 Label="Capacity (Seats)"
+                                 @bind-Value="_capacity"
+                                 Min="1"
+                                 Max="500"
+                                 Variant="Variant.Outlined"
+                                 Required="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudNumericField T="decimal"
+                                 Label="Price Per Hour ($)"
+                                 @bind-Value="_pricePerHour"
+                                 Min="0"
+                                 Format="F2"
+                                 Variant="Variant.Outlined"
+                                 Required="true" />
+            </MudItem>
+        </MudGrid>
+
+        @if (ExistingWorkspace != null)
+        {
+            <MudSwitch @bind-Value="_isAvailable"
+                       Color="Color.Success"
+                       Label="Mark as Available for Member Reservations"
+                       Class="mb-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@_isSubmitting">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <MudText>Saving...</MudText>
+            }
+            else
+            {
+                <MudText>@(ExistingWorkspace == null ? "Create Workspace" : "Save Changes")</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public WorkspaceResponseDto? ExistingWorkspace { get; set; }
+
+    private IEnumerable<WorkspaceTypeResponseDto>? _types;
+    private string _name = string.Empty;
+    private int _workspaceTypeId;
+    private int _capacity = 1;
+    private decimal _pricePerHour = 15.00m;
+    private bool _isAvailable = true;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _types = await WorkspaceService.GetWorkspaceTypesAsync();
+
+        if (ExistingWorkspace != null)
+        {
+            _name = ExistingWorkspace.Name;
+            _workspaceTypeId = ExistingWorkspace.WorkspaceTypeId;
+            _capacity = ExistingWorkspace.Capacity;
+            _pricePerHour = ExistingWorkspace.PricePerHour;
+            _isAvailable = ExistingWorkspace.IsAvailable;
+        }
+        else if (_types != null && _types.Any())
+        {
+            _workspaceTypeId = _types.First().Id;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _errorMessage = "Workspace name is required.";
+            return;
+        }
+
+        if (_capacity <= 0)
+        {
+            _errorMessage = "Capacity must be at least 1.";
+            return;
+        }
+
+        if (_pricePerHour < 0)
+        {
+            _errorMessage = "Hourly price cannot be negative.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (ExistingWorkspace == null)
+            {
+                var dto = new CreateWorkspaceDto(_name, _pricePerHour, _capacity, _workspaceTypeId);
+                await WorkspaceService.CreateAsync(dto);
+                Snackbar.Add($"Workspace '{_name}' created successfully!", Severity.Success);
+            }
+            else
+            {
+                var dto = new UpdateWorkspaceDto(_name, _pricePerHour, _capacity, _workspaceTypeId, _isAvailable);
+                await WorkspaceService.UpdateAsync(ExistingWorkspace.Id, dto);
+                Snackbar.Add($"Workspace '{_name}' updated successfully!", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

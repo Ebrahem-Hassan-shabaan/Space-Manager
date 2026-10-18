@@ -155,6 +155,29 @@ namespace SpaceManager.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Amenity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("nvarchar(600)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Amenities");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -228,6 +251,27 @@ namespace SpaceManager.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.BookingAddOn", b =>
+                {
+                    b.Property<int>("WorkspaceBookingId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ServiceAddOnId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("WorkspaceBookingId", "ServiceAddOnId");
+
+                    b.HasIndex("ServiceAddOnId");
+
+                    b.ToTable("BookingAddOns");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
                 {
                     b.Property<int>("Id")
@@ -269,6 +313,30 @@ namespace SpaceManager.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("MaintenanceTickets");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.ServiceAddOn", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsAvailable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceAddOns");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.TicketUpdate", b =>
@@ -382,6 +450,24 @@ namespace SpaceManager.Migrations
                     b.ToTable("Workspaces");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.WorkspaceAmenity", b =>
+                {
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AmenityId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsOperational")
+                        .HasColumnType("bit");
+
+                    b.HasKey("WorkspaceId", "AmenityId");
+
+                    b.HasIndex("AmenityId");
+
+                    b.ToTable("WorkspaceAmenities");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.WorkspaceBooking", b =>
                 {
                     b.Property<int>("Id")
@@ -490,6 +576,25 @@ namespace SpaceManager.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.BookingAddOn", b =>
+                {
+                    b.HasOne("SpaceManager.Models.ServiceAddOn", "ServiceAddOn")
+                        .WithMany("BookingAddOns")
+                        .HasForeignKey("ServiceAddOnId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.WorkspaceBooking", "WorkspaceBooking")
+                        .WithMany("BookingAddOns")
+                        .HasForeignKey("WorkspaceBookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceAddOn");
+
+                    b.Navigation("WorkspaceBooking");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
                 {
                     b.HasOne("SpaceManager.Models.ApplicationUser", "User")
@@ -558,6 +663,25 @@ namespace SpaceManager.Migrations
                     b.Navigation("WorkspaceType");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.WorkspaceAmenity", b =>
+                {
+                    b.HasOne("SpaceManager.Models.Amenity", "Amenity")
+                        .WithMany("WorkspaceAmenities")
+                        .HasForeignKey("AmenityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.Workspace", "Workspace")
+                        .WithMany("WorkspaceAmenities")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Amenity");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.WorkspaceBooking", b =>
                 {
                     b.HasOne("SpaceManager.Models.ApplicationUser", "User")
@@ -577,6 +701,11 @@ namespace SpaceManager.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Amenity", b =>
+                {
+                    b.Navigation("WorkspaceAmenities");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.ApplicationUser", b =>
                 {
                     b.Navigation("MaintenanceTickets");
@@ -593,15 +722,24 @@ namespace SpaceManager.Migrations
                     b.Navigation("TicketUpdates");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.ServiceAddOn", b =>
+                {
+                    b.Navigation("BookingAddOns");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.Workspace", b =>
                 {
                     b.Navigation("MaintenanceTickets");
+
+                    b.Navigation("WorkspaceAmenities");
 
                     b.Navigation("WorkspaceBookings");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.WorkspaceBooking", b =>
                 {
+                    b.Navigation("BookingAddOns");
+
                     b.Navigation("VisitorPasses");
                 });
 

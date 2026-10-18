@@ -45,13 +45,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddAuthentication(opt =>
 {
-    opt.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    opt.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-}).AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, opt =>
-    {
-        opt.Cookie.Name = "SpaceManagerAuthCookie";
-        opt.LoginPath = "/login";
-    })
+    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
 .AddJwtBearer(opt =>
 {
     opt.TokenValidationParameters = new TokenValidationParameters
@@ -71,6 +67,8 @@ builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IVisitorPassService, VisitorPassService>();
 builder.Services.AddScoped<IMaintenanceTicketService, MaintenanceTicketService>();
+builder.Services.AddScoped<IAmenityService, AmenityService>();
+builder.Services.AddScoped<IAddOnService, AddOnService>();
 
 var app = builder.Build();
 

@@ -13,6 +13,10 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VisitorPass> VisitorPasses { get; set; }
     public DbSet<MaintenanceTicket> MaintenanceTickets { get; set; }
     public DbSet<TicketUpdate> TicketUpdates { get; set; }
+    public DbSet<Amenity> Amenities { get; set; }
+    public DbSet<WorkspaceAmenity> WorkspaceAmenities { get; set; }
+    public DbSet<BookingAddOn> BookingAddOns { get; set; }
+    public DbSet<ServiceAddOn> ServiceAddOns { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {

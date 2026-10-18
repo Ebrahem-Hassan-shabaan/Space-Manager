@@ -17,4 +17,5 @@ public class WorkspaceBooking
     public Workspace Workspace { get; set; }
 
     public ICollection<VisitorPass> VisitorPasses { get; set; } = new List<VisitorPass>();
+    public ICollection<BookingAddOn> BookingAddOns { get; set; } = new List<BookingAddOn>();
 }

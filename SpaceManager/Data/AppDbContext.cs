@@ -17,6 +17,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkspaceAmenity> WorkspaceAmenities { get; set; }
     public DbSet<BookingAddOn> BookingAddOns { get; set; }
     public DbSet<ServiceAddOn> ServiceAddOns { get; set; }
+    public DbSet<Company> Companies { get; set; }
+        
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {

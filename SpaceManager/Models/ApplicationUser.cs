@@ -11,4 +11,6 @@ public class ApplicationUser : IdentityUser
     public ICollection<VisitorPass> VisitorPasses { get; set; } = new List<VisitorPass>();
     public ICollection<TicketUpdate> TicketUpdates { get; set; } = new List<TicketUpdate>();
     public ICollection<MaintenanceTicket> MaintenanceTickets { get; set; } = new List<MaintenanceTicket>();
+    public Company? Company { get; set; }
+    public int? CompanyId { get; set; }
 }

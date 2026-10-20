@@ -14,5 +14,6 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
 
         builder.Property(u => u.RegisteredAt)
             .IsRequired();
+      
     }
 }

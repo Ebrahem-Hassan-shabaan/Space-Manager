@@ -164,7 +164,6 @@ namespace SpaceManager.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasMaxLength(600)
                         .HasColumnType("nvarchar(600)");
 
@@ -184,6 +183,9 @@ namespace SpaceManager.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("AccessFailedCount")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CompanyId")
                         .HasColumnType("int");
 
                     b.Property<string>("ConcurrencyStamp")
@@ -240,6 +242,8 @@ namespace SpaceManager.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
@@ -270,6 +274,42 @@ namespace SpaceManager.Migrations
                     b.HasIndex("ServiceAddOnId");
 
                     b.ToTable("BookingAddOns");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.Company", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BillingAddress")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactEmail")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TaxRegistrationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Companies");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
@@ -576,6 +616,16 @@ namespace SpaceManager.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.ApplicationUser", b =>
+                {
+                    b.HasOne("SpaceManager.Models.Company", "Company")
+                        .WithMany("Users")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.BookingAddOn", b =>
                 {
                     b.HasOne("SpaceManager.Models.ServiceAddOn", "ServiceAddOn")
@@ -715,6 +765,11 @@ namespace SpaceManager.Migrations
                     b.Navigation("VisitorPasses");
 
                     b.Navigation("WorkspaceBookings");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.Company", b =>
+                {
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>

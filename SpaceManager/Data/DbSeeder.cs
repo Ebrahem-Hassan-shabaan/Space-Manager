@@ -11,7 +11,7 @@ public static class DbSeeder
     public static async Task SeedRolesAsync(IServiceProvider serviceProvider)
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        string[] roleNames = { "Admin", "User" };
+        string[] roleNames = { "Admin", "User" , "CompanyAdmin" };
 
         foreach (var roleName in roleNames)
         {

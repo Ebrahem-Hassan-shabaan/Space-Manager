@@ -131,7 +131,6 @@ public class AmenityService : IAmenityService
 
         if (existingAssignment != null)
         {
-            // Idempotent: if already assigned, update its operational status
             existingAssignment.IsOperational = dto.IsOperational;
         }
         else

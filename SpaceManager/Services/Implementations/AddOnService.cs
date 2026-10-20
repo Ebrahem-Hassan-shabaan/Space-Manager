@@ -98,7 +98,7 @@ public class AddOnService : IAddOnService
         {
             throw new InvalidOperationException(
                 $"Cannot delete service add-on '{service.Name}' because it is associated with existing bookings. " +
-                "Consider deactivating it (setting IsAvailable = false) to retain financial and booking history.");
+                "Consider deactivating it to retain financial and booking history.");
         }
 
         _context.ServiceAddOns.Remove(service);
@@ -123,7 +123,7 @@ public class AddOnService : IAddOnService
     }
 
     /// <inheritdoc />
-    public async Task<decimal> CalculateTotalCostAsync(IEnumerable<BookingAddOnRequestDto> addOns)
+    public async Task<decimal> CalculateTotalCostAsync(IEnumerable<BookingAddOnRequestDto>? addOns)
     {
         if (addOns == null)
         {
@@ -137,10 +137,8 @@ public class AddOnService : IAddOnService
         }
 
         var requestedIds = requestList.Select(a => a.ServiceAddOnId).Distinct().ToList();
-
-        // Batch query all requested services in a single round-trip
         var services = await _context.ServiceAddOns
-            .Where(s => requestedIds.Contains(s.Id))
+            .Where(s=>requestedIds.Contains(s.Id))
             .ToDictionaryAsync(s => s.Id);
 
         decimal totalCost = 0m;

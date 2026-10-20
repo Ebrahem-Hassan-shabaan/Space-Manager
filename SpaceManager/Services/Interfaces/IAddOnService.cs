@@ -57,5 +57,5 @@ public interface IAddOnService
     /// <param name="addOns">The collection of requested add-ons with quantities.</param>
     /// <returns>The total calculated cost of the add-on items.</returns>
     /// <exception cref="InvalidOperationException">Thrown if any requested add-on does not exist or is unavailable.</exception>
-    Task<decimal> CalculateTotalCostAsync(IEnumerable<BookingAddOnRequestDto> addOns);
+    Task<decimal> CalculateTotalCostAsync(IEnumerable<BookingAddOnRequestDto>? addOns);
 }

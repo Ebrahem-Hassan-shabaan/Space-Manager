@@ -1,4 +1,6 @@
 using SpaceManager.Enums;
+using SpaceManager.DTOs.ServiceAddOns;
+using System.Collections.Generic;
 
 namespace SpaceManager.DTOs.Bookings;
 
@@ -12,6 +14,7 @@ namespace SpaceManager.DTOs.Bookings;
 /// <param name="EndTime">The end date and time of the reservation.</param>
 /// <param name="TotalCost">The calculated total cost of the reservation.</param>
 /// <param name="Status">The current status of the reservation.</param>
+/// <param name="BookingAddOns">The optional list of service add-ons included in the booking.</param>
 public record BookingResponseDto(
     int Id,
     int WorkspaceId,
@@ -19,5 +22,6 @@ public record BookingResponseDto(
     DateTime StartTime,
     DateTime EndTime,
     decimal TotalCost,
-    BookingStatus Status
+    BookingStatus Status,
+    List<BookingAddOnResponseDto>? BookingAddOns = null
 );

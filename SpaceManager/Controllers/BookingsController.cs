@@ -12,18 +12,21 @@ namespace SpaceManager.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[Authorize]
 public class BookingsController : ControllerBase
 {
     private readonly IBookingService _bookingService;
+    private readonly IAddOnService _addOnService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BookingsController"/> class.
     /// </summary>
     /// <param name="bookingService">The booking service instance.</param>
-    public BookingsController(IBookingService bookingService)
+    /// <param name="addOnService">The add-on service instance.</param>
+    public BookingsController(IBookingService bookingService, IAddOnService addOnService)
     {
         _bookingService = bookingService;
+        _addOnService = addOnService;
     }
 
     /// <summary>
@@ -182,5 +185,27 @@ public class BookingsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+    /// <summary>
+    /// Retrieves all service add-ons associated with a specific workspace booking.
+    /// </summary>
+    /// <param name="id">The unique identifier of the workspace booking.</param>
+    /// <returns>A collection of booking add-on response DTOs.</returns>
+    /// <response code="200">Returns the list of add-ons for the booking.</response>
+    /// <response code="401">If the request is unauthenticated.</response>
+    /// <response code="404">If the booking does not exist or has no add-ons.</response>
+    [HttpGet("{id:int}/addons")]
+    [ProducesResponseType(typeof(System.Collections.Generic.IEnumerable<SpaceManager.DTOs.ServiceAddOns.BookingAddOnResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBookingAddOns(int id)
+    {
+       var addons = await _addOnService.GetByBookingIdAsync(id);
+         if (addons == null)
+          {
+                return NotFound(new { message = "No add-ons found for this booking." });
+          }
+    
+          return Ok(addons);
     }
 }

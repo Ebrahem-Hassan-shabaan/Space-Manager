@@ -12,7 +12,7 @@ namespace SpaceManager.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/visitorpasses")]
-[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[Authorize]
 public class VisitorPassController : ControllerBase
 {
     private readonly IVisitorPassService _visitorPassService;
@@ -132,7 +132,7 @@ public class VisitorPassController : ControllerBase
     /// <response code="403">If the user is not an administrator.</response>
     /// <response code="404">If the visitor pass is not found.</response>
     [HttpPatch("{id}/checkin")]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

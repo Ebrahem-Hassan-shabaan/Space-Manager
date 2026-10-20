@@ -75,7 +75,7 @@ public class AuthController : ControllerBase
     /// <response code="401">If the user is unauthenticated.</response>
     /// <response code="404">If the user profile could not be found.</response>
     [HttpGet("me")]
-    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [Authorize]
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

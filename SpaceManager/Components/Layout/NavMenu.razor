@@ -1,6 +1,7 @@
 @namespace SpaceManager.Components.Layout
 @inject CustomAuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <MudNavMenu Class="mud-width-full">
     <!-- Public & General Navigation -->
@@ -26,9 +27,19 @@
             <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Admin Console</MudText>
             <MudNavLink Href="/admin/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">System Dashboard</MudNavLink>
             <MudNavLink Href="/admin/workspaces" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Desk">Manage Workspaces</MudNavLink>
+            <MudNavLink Href="/admin/companies" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Business">Corporate Companies</MudNavLink>
             <MudNavLink Href="/admin/bookings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CalendarMonth">All Bookings</MudNavLink>
             <MudNavLink Href="/admin/check-in" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Visitor Check-In</MudNavLink>
             <MudNavLink Href="/admin/tickets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Handyman">Maintenance Center</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    <!-- Company Administrator Section -->
+    <AuthorizeView Roles="CompanyAdmin">
+        <Authorized>
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Company Portal</MudText>
+            <MudNavLink Href="/company/members" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Company Members</MudNavLink>
         </Authorized>
     </AuthorizeView>
 
@@ -43,11 +54,16 @@
                 {
                     <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Class="mt-1">Administrator</MudChip>
                 }
+                else if (context.User.IsInRole("CompanyAdmin"))
+                {
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled" Class="mt-1">Company Admin</MudChip>
+                }
                 else
                 {
                     <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1">Member</MudChip>
                 }
             </div>
+            <MudNavLink OnClick="OpenProfileDialog" Icon="@Icons.Material.Filled.AccountBox">My Profile</MudNavLink>
             <MudNavLink OnClick="HandleLogout" Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error">Sign Out</MudNavLink>
         </Authorized>
         <NotAuthorized>
@@ -59,6 +75,11 @@
 </MudNavMenu>
 
 @code {
+    private async Task OpenProfileDialog()
+    {
+        await DialogService.ShowAsync<SpaceManager.Components.Pages.Auth.Dialogs.UserProfileDialog>("Account Profile");
+    }
+
     private async Task HandleLogout()
     {
         await AuthStateProvider.MarkUserAsLoggedOutAsync();

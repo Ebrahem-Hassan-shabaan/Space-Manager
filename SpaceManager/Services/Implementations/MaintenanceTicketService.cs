@@ -7,6 +7,9 @@ using SpaceManager.Services.Interfaces;
 
 namespace SpaceManager.Services.Implementations;
 
+/// <summary>
+/// Implements maintenance ticket reporting, operational tracking, and update threads.
+/// </summary>
 public class MaintenanceTicketService : IMaintenanceTicketService
 {
     private readonly AppDbContext _context;

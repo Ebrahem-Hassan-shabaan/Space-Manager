@@ -4,8 +4,15 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Data.Configurations;
 
+/// <summary>
+/// Entity Framework Core mapping configuration for the <see cref="MaintenanceTicket"/> entity.
+/// </summary>
 public class MaintenanceTicketConfiguration : IEntityTypeConfiguration<MaintenanceTicket>
 {
+    /// <summary>
+    /// Configures constraints, text limits, and foreign key relationships for maintenance tickets.
+    /// </summary>
+    /// <param name="builder">The entity type builder used to configure the entity.</param>
     public void Configure(EntityTypeBuilder<MaintenanceTicket> builder)
     {
         builder.HasKey(mt => mt.Id);

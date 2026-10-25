@@ -2,6 +2,7 @@
 @inherits LayoutComponentBase
 @inject CustomAuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -34,13 +35,17 @@
                     {
                         <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Admin</MudChip>
                     }
+                    else if (context.User.IsInRole("CompanyAdmin"))
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Filled">Company Admin</MudChip>
+                    }
                     else
                     {
                         <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled">Member</MudChip>
                     }
                 </div>
                 <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="ml-2">
-                    <MudMenuItem Icon="@Icons.Material.Filled.Person">Signed in as @context.User.Identity?.Name</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Filled.Person" OnClick="OpenProfileDialog">My Profile</MudMenuItem>
                     <MudDivider />
                     <MudMenuItem Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error" OnClick="Logout">Sign Out</MudMenuItem>
                 </MudMenu>
@@ -99,6 +104,13 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+
+    private async Task OpenProfileDialog()
+    {
+        await DialogService.ShowAsync<SpaceManager.Components.Pages.Auth.Dialogs.UserProfileDialog>(
+            "Account Profile",
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
 
     private async Task Logout()
     {

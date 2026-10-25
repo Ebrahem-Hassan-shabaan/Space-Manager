@@ -9,6 +9,9 @@ using System.Linq;
 
 namespace SpaceManager.Services.Implementations;
 
+/// <summary>
+/// Implements workspace scheduling, availability validation, and reservation management.
+/// </summary>
 public class BookingService : IBookingService
 {
     private readonly AppDbContext _context;

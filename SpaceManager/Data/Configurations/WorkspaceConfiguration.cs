@@ -4,8 +4,15 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Data.Configurations;
 
+/// <summary>
+/// Entity Framework Core mapping configuration for the <see cref="Workspace"/> entity.
+/// </summary>
 public class WorkspaceConfiguration : IEntityTypeConfiguration<Workspace>
 {
+    /// <summary>
+    /// Configures property constraints, decimal pricing precision, and workspace category relations.
+    /// </summary>
+    /// <param name="builder">The entity type builder used to configure the entity.</param>
     public void Configure(EntityTypeBuilder<Workspace> builder)
     {
         builder.HasKey(w => w.Id);

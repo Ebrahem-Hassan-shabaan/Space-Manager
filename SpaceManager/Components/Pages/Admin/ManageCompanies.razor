@@ -1,0 +1,255 @@
+@page "/admin/companies"
+@attribute [Authorize(Roles = "Admin")]
+@inject ICompanyService CompanyService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Corporate Accounts</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Manage registered business entities, assign tenant administrators, and monitor corporate memberships.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.AddBusiness"
+                   OnClick="@(() => OpenEditDialog(null))">
+            Register Company
+        </MudButton>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="6" md="4">
+            <StatCard Title="Total Companies"
+                      Value="@(_companies?.Count().ToString() ?? "0")"
+                      Description="Active corporate client profiles"
+                      Icon="@Icons.Material.Filled.Business"
+                      AvatarColor="Color.Primary" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <StatCard Title="Corporate Members"
+                      Value="@(_companies?.Sum(c => c.MemberCount).ToString() ?? "0")"
+                      Description="Affiliated employee accounts"
+                      Icon="@Icons.Material.Filled.People"
+                      AvatarColor="Color.Info" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <StatCard Title="Avg. Company Size"
+                      Value="@(_companies != null && _companies.Any() ? (_companies.Average(c => c.MemberCount)).ToString("0.0") : "0")"
+                      Description="Employees per registered company"
+                      Icon="@Icons.Material.Filled.Groups"
+                      AvatarColor="Color.Success" />
+        </MudItem>
+    </MudGrid>
+
+    <!-- Search Bar -->
+    <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+        <MudTextField @bind-Value="_searchString"
+                      Placeholder="Search by company name, tax ID, or contact email..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense" />
+    </MudPaper>
+
+    <!-- Table -->
+    <MudTable Items="@FilteredCompanies"
+              Loading="@_isLoading"
+              Hover="true"
+              Elevation="3"
+              Class="rounded-lg">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Company Name</MudTh>
+            <MudTh>Tax / Reg #</MudTh>
+            <MudTh>Contact Email</MudTh>
+            <MudTh>Billing Address</MudTh>
+            <MudTh>Members</MudTh>
+            <MudTh>Created Date</MudTh>
+            <MudTh Class="text-right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">#@context.Id</MudTd>
+            <MudTd DataLabel="Company Name">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@context.Name</MudText>
+            </MudTd>
+            <MudTd DataLabel="Tax / Reg #">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                    @context.TaxRegistrationNumber
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Contact Email">@context.ContactEmail</MudTd>
+            <MudTd DataLabel="Billing Address">
+                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 200px;">
+                    @context.BillingAddress
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Members">
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">
+                    @context.MemberCount @(context.MemberCount == 1 ? "member" : "members")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Created Date">@context.CreatedAt.ToString("MMM dd, yyyy")</MudTd>
+            <MudTd DataLabel="Actions" Class="text-right">
+                <MudTooltip Text="Manage Employees / Members">
+                    <MudIconButton Icon="@Icons.Material.Filled.People"
+                                   Color="Color.Info"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenMembersDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Designate Company Admin">
+                    <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings"
+                                   Color="Color.Warning"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenAssignAdminDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Edit Profile">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Delete Company">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => ConfirmDelete(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 text-center">No companies found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private IEnumerable<CompanyResponseDto>? _companies;
+    private string _searchString = string.Empty;
+    private bool _isLoading = true;
+
+    private IEnumerable<CompanyResponseDto> FilteredCompanies
+    {
+        get
+        {
+            if (_companies == null) return Enumerable.Empty<CompanyResponseDto>();
+
+            if (string.IsNullOrWhiteSpace(_searchString))
+            {
+                return _companies;
+            }
+
+            return _companies.Where(c =>
+                c.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                c.TaxRegistrationNumber.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                c.ContactEmail.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompanies();
+    }
+
+    private async Task LoadCompanies()
+    {
+        _isLoading = true;
+        try
+        {
+            _companies = await CompanyService.GetAllAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenEditDialog(CompanyResponseDto? company)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Admin.Dialogs.CompanyEditDialog>
+        {
+            { x => x.ExistingCompany, company }
+        };
+
+        var title = company == null ? "Register New Corporate Company" : $"Edit {company.Name}";
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Admin.Dialogs.CompanyEditDialog>(title, parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadCompanies();
+        }
+    }
+
+    private async Task OpenMembersDialog(CompanyResponseDto company)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Admin.Dialogs.CompanyMembersDialog>
+        {
+            { x => x.CompanyId, company.Id },
+            { x => x.CompanyName, company.Name }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Admin.Dialogs.CompanyMembersDialog>(
+            $"{company.Name} Members",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+
+        await dialog.Result;
+        await LoadCompanies(); // Refresh member counts
+    }
+
+    private async Task OpenAssignAdminDialog(CompanyResponseDto company)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Admin.Dialogs.AssignCompanyAdminDialog>
+        {
+            { x => x.CompanyId, company.Id },
+            { x => x.CompanyName, company.Name }
+        };
+
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Admin.Dialogs.AssignCompanyAdminDialog>("Assign Company Administrator", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadCompanies();
+        }
+    }
+
+    private async Task ConfirmDelete(CompanyResponseDto company)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to delete '{company.Name}'? Companies with active members cannot be deleted." },
+            { x => x.ButtonText, "Yes, Delete" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Company", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var deleteResult = await CompanyService.DeleteAsync(company.Id);
+                if (deleteResult.Succeeded)
+                {
+                    Snackbar.Add($"Company '{company.Name}' deleted.", Severity.Success);
+                    await LoadCompanies();
+                }
+                else
+                {
+                    Snackbar.Add(deleteResult.Error ?? "Cannot delete company.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

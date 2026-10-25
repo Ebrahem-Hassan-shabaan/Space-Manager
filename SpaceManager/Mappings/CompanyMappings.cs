@@ -25,12 +25,20 @@ public static class CompanyMappings
     /// <summary>
     /// Projects an <see cref="ApplicationUser"/> member into a <see cref="CompanyMemberResponseDto"/>.
     /// </summary>
-    public static CompanyMemberResponseDto ToMemberDto(this ApplicationUser user, bool isCompanyAdmin = false) =>
+    public static CompanyMemberResponseDto ToMemberDto(this ApplicationUser user) =>
         new(
             user.Id,
             user.FullName,
             user.Email ?? string.Empty,
-            isCompanyAdmin,
             user.RegisteredAt
         );
+    public static Company ToEntity(this CreateCompanyDto dto) =>
+        new()
+        {
+            Name = dto.Name,
+            TaxRegistrationNumber = dto.TaxRegistrationNumber,
+            BillingAddress = dto.BillingAddress,
+            ContactEmail = dto.ContactEmail
+        };
+    
 }

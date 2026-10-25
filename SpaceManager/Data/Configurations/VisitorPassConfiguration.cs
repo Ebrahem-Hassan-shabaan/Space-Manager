@@ -4,8 +4,15 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Data.Configurations;
 
+/// <summary>
+/// Entity Framework Core mapping configuration for the <see cref="VisitorPass"/> entity.
+/// </summary>
 public class VisitorPassConfiguration : IEntityTypeConfiguration<VisitorPass>
 {
+    /// <summary>
+    /// Configures property constraints, string lengths, and host/booking foreign keys for visitor passes.
+    /// </summary>
+    /// <param name="builder">The entity type builder used to configure the entity.</param>
     public void Configure(EntityTypeBuilder<VisitorPass> builder)
     {
         builder.HasKey(vp => vp.Id);

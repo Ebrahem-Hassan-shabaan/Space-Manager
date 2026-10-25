@@ -1,0 +1,189 @@
+@namespace SpaceManager.Components.Pages.Admin.Dialogs
+@inject ICompanyService CompanyService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@(ExistingCompany == null ? Icons.Material.Filled.AddBusiness : Icons.Material.Filled.Edit)" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.h6">@(ExistingCompany == null ? "Register New Corporate Company" : $"Edit Company: {ExistingCompany.Name}")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudTextField @bind-Value="_name"
+                      Label="Legal Business Name"
+                      Placeholder="e.g. Acme Corporation"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudTextField @bind-Value="_taxRegistrationNumber"
+                      Label="Tax / Commercial Registration Number"
+                      Placeholder="e.g. TRN-123456789"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        <MudTextField @bind-Value="_billingAddress"
+                      Label="Corporate Billing Address"
+                      Placeholder="e.g. 100 Innovation Way, Suite 400"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Lines="2"
+                      Class="mb-3" />
+
+        <MudTextField @bind-Value="_contactEmail"
+                      Label="Primary Contact / Invoicing Email"
+                      Placeholder="billing@acme.corp"
+                      InputType="InputType.Email"
+                      Variant="Variant.Outlined"
+                      Required="true"
+                      Class="mb-3" />
+
+        @if (ExistingCompany == null)
+        {
+            <MudTextField @bind-Value="_adminEmail"
+                          Label="Initial Company Admin Email (Optional)"
+                          Placeholder="admin@acme.corp"
+                          InputType="InputType.Email"
+                          Variant="Variant.Outlined"
+                          HelperText="Must be an existing registered user. Will be granted CompanyAdmin role."
+                          Class="mb-3" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_isSubmitting"
+                   OnClick="Submit">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Saving...</span>
+            }
+            else
+            {
+                <span>@(ExistingCompany == null ? "Create Company" : "Save Changes")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public CompanyResponseDto? ExistingCompany { get; set; }
+
+    private string _name = string.Empty;
+    private string _taxRegistrationNumber = string.Empty;
+    private string _billingAddress = string.Empty;
+    private string _contactEmail = string.Empty;
+    private string? _adminEmail;
+
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (ExistingCompany != null)
+        {
+            _name = ExistingCompany.Name;
+            _taxRegistrationNumber = ExistingCompany.TaxRegistrationNumber;
+            _billingAddress = ExistingCompany.BillingAddress;
+            _contactEmail = ExistingCompany.ContactEmail;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _errorMessage = "Company name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_taxRegistrationNumber))
+        {
+            _errorMessage = "Tax registration number is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_billingAddress))
+        {
+            _errorMessage = "Billing address is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_contactEmail))
+        {
+            _errorMessage = "Contact email is required.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (ExistingCompany == null)
+            {
+                var dto = new CreateCompanyDto(
+                    _name,
+                    _taxRegistrationNumber,
+                    _billingAddress,
+                    _contactEmail,
+                    string.IsNullOrWhiteSpace(_adminEmail) ? null : _adminEmail.Trim()
+                );
+
+                var result = await CompanyService.CreateAsync(dto);
+                if (!result.Succeeded)
+                {
+                    _errorMessage = result.Error;
+                    return;
+                }
+
+                Snackbar.Add($"Company '{_name}' registered successfully!", Severity.Success);
+            }
+            else
+            {
+                var dto = new UpdateCompanyDto(
+                    _name,
+                    _taxRegistrationNumber,
+                    _billingAddress,
+                    _contactEmail
+                );
+
+                var result = await CompanyService.UpdateAsync(ExistingCompany.Id, dto);
+                if (!result.Succeeded)
+                {
+                    _errorMessage = result.Error;
+                    return;
+                }
+
+                Snackbar.Add($"Company '{_name}' updated successfully!", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

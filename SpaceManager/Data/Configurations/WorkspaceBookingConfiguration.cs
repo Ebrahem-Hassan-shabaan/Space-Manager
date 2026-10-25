@@ -4,8 +4,15 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Data.Configurations;
 
+/// <summary>
+/// Entity Framework Core mapping configuration for the <see cref="WorkspaceBooking"/> entity.
+/// </summary>
 public class WorkspaceBookingConfiguration : IEntityTypeConfiguration<WorkspaceBooking>
 {
+    /// <summary>
+    /// Configures decimal precision, required schedule timestamps, and foreign key rules for workspace reservations.
+    /// </summary>
+    /// <param name="builder">The entity type builder used to configure the entity.</param>
     public void Configure(EntityTypeBuilder<WorkspaceBooking> builder)
     {
         builder.HasKey(wb => wb.Id);

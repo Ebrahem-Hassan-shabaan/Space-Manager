@@ -312,6 +312,50 @@ namespace SpaceManager.Migrations
                     b.ToTable("Companies");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Invoice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("IssuedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("WorkspaceBookingId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceBookingId")
+                        .IsUnique()
+                        .HasFilter("[WorkspaceBookingId] IS NOT NULL");
+
+                    b.ToTable("Invoices");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
                 {
                     b.Property<int>("Id")
@@ -353,6 +397,40 @@ namespace SpaceManager.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("MaintenanceTickets");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.Payment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("PaymentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TransactionReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("Payments");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.ServiceAddOn", b =>
@@ -645,6 +723,30 @@ namespace SpaceManager.Migrations
                     b.Navigation("WorkspaceBooking");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Invoice", b =>
+                {
+                    b.HasOne("SpaceManager.Models.Company", "Company")
+                        .WithMany("Invoices")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SpaceManager.Models.ApplicationUser", "User")
+                        .WithMany("Invoices")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SpaceManager.Models.WorkspaceBooking", "WorkspaceBooking")
+                        .WithOne("Invoice")
+                        .HasForeignKey("SpaceManager.Models.Invoice", "WorkspaceBookingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkspaceBooking");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
                 {
                     b.HasOne("SpaceManager.Models.ApplicationUser", "User")
@@ -662,6 +764,17 @@ namespace SpaceManager.Migrations
                     b.Navigation("User");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.Payment", b =>
+                {
+                    b.HasOne("SpaceManager.Models.Invoice", "Invoice")
+                        .WithMany("Payments")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.TicketUpdate", b =>
@@ -758,6 +871,8 @@ namespace SpaceManager.Migrations
 
             modelBuilder.Entity("SpaceManager.Models.ApplicationUser", b =>
                 {
+                    b.Navigation("Invoices");
+
                     b.Navigation("MaintenanceTickets");
 
                     b.Navigation("TicketUpdates");
@@ -769,7 +884,14 @@ namespace SpaceManager.Migrations
 
             modelBuilder.Entity("SpaceManager.Models.Company", b =>
                 {
+                    b.Navigation("Invoices");
+
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.Invoice", b =>
+                {
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.MaintenanceTicket", b =>
@@ -794,6 +916,8 @@ namespace SpaceManager.Migrations
             modelBuilder.Entity("SpaceManager.Models.WorkspaceBooking", b =>
                 {
                     b.Navigation("BookingAddOns");
+
+                    b.Navigation("Invoice");
 
                     b.Navigation("VisitorPasses");
                 });

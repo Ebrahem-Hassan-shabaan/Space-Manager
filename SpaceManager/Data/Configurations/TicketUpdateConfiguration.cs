@@ -4,8 +4,15 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Data.Configurations;
 
+/// <summary>
+/// Entity Framework Core mapping configuration for the <see cref="TicketUpdate"/> entity.
+/// </summary>
 public class TicketUpdateConfiguration : IEntityTypeConfiguration<TicketUpdate>
 {
+    /// <summary>
+    /// Configures message text limits, defaults, and cascade behaviors for ticket updates.
+    /// </summary>
+    /// <param name="builder">The entity type builder used to configure the entity.</param>
     public void Configure(EntityTypeBuilder<TicketUpdate> builder)
     {
         builder.HasKey(tu => tu.Id);

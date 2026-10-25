@@ -1,0 +1,219 @@
+@namespace SpaceManager.Components.Pages.Admin.Dialogs
+@inject ICompanyService CompanyService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.h6">@CompanyName — Employees & Members</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <!-- Add Member Input Group -->
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-4 rounded-lg">
+            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Add Member by Registered Email</MudText>
+            <div class="d-flex gap-2 align-center">
+                <MudTextField @bind-Value="_newMemberEmail"
+                              Placeholder="user@example.com"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Immediate="true"
+                              InputType="InputType.Email"
+                              Class="flex-grow-1" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                           Disabled="_isAddingMember"
+                           OnClick="AddMember">
+                    @if (_isAddingMember)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Add Member
+                </MudButton>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_addMemberError))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _addMemberError = null)">
+                    @_addMemberError
+                </MudAlert>
+            }
+        </MudPaper>
+
+        <!-- Members Table -->
+        <MudTable Items="@_members"
+                  Loading="@_isLoading"
+                  Hover="true"
+                  Elevation="1"
+                  Dense="true"
+                  Class="rounded-lg">
+            <HeaderContent>
+                <MudTh>Full Name</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Registered Date</MudTh>
+                <MudTh Class="text-right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Full Name">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Primary" Size="Size.Small" Class="mr-2">
+                            @(string.IsNullOrWhiteSpace(context.FullName) ? "?" : context.FullName[0].ToString().ToUpper())
+                        </MudAvatar>
+                        <MudText Typo="Typo.body2" Class="font-weight-medium">@context.FullName</MudText>
+                    </div>
+                </MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Registered Date">@context.RegisteredAt.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="Actions" Class="text-right">
+                    @if (_caller?.IsAdmin == true)
+                    {
+                        <MudTooltip Text="Designate as Company Admin">
+                            <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings"
+                                           Color="Color.Info"
+                                           Size="Size.Small"
+                                           OnClick="@(() => MakeAdmin(context.Email))" />
+                        </MudTooltip>
+                    }
+                    <MudTooltip Text="Remove from Company">
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="@(() => ConfirmRemove(context))" />
+                    </MudTooltip>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4 text-center text-muted">No members currently affiliated with this company.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [Parameter]
+    public int CompanyId { get; set; }
+
+    [Parameter]
+    public string CompanyName { get; set; } = string.Empty;
+
+    private CurrentUserContext? _caller;
+    private IEnumerable<CompanyMemberResponseDto> _members = Enumerable.Empty<CompanyMemberResponseDto>();
+    private bool _isLoading = true;
+    private string _newMemberEmail = string.Empty;
+    private bool _isAddingMember = false;
+    private string? _addMemberError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _caller = authState.User.GetUserContext();
+        await LoadMembers();
+    }
+
+    private async Task LoadMembers()
+    {
+        if (_caller == null) return;
+        _isLoading = true;
+        try
+        {
+            var result = await CompanyService.GetMembersAsync(CompanyId, _caller);
+            if (result.Succeeded && result.Data != null)
+            {
+                _members = result.Data;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task AddMember()
+    {
+        if (string.IsNullOrWhiteSpace(_newMemberEmail) || _caller == null)
+        {
+            _addMemberError = "Please enter an email address.";
+            return;
+        }
+
+        _isAddingMember = true;
+        _addMemberError = null;
+
+        try
+        {
+            var result = await CompanyService.AddMemberAsync(CompanyId, _newMemberEmail.Trim(), _caller);
+            if (!result.Succeeded)
+            {
+                _addMemberError = result.Error;
+                return;
+            }
+
+            Snackbar.Add($"User {_newMemberEmail} added to {CompanyName}!", Severity.Success);
+            _newMemberEmail = string.Empty;
+            await LoadMembers();
+        }
+        catch (Exception ex)
+        {
+            _addMemberError = ex.Message;
+        }
+        finally
+        {
+            _isAddingMember = false;
+        }
+    }
+
+    private async Task MakeAdmin(string email)
+    {
+        var result = await CompanyService.SetCompanyAdminAsync(CompanyId, email);
+        if (result.Succeeded)
+        {
+            Snackbar.Add($"Promoted {email} to Company Admin!", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(result.Error ?? "Failed to assign admin role.", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmRemove(CompanyMemberResponseDto member)
+    {
+        if (_caller == null) return;
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to remove '{member.FullName}' from {CompanyName}? They will become an independent user." },
+            { x => x.ButtonText, "Remove Member" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Remove Member", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var removeResult = await CompanyService.RemoveMemberAsync(CompanyId, member.UserId, _caller);
+            if (removeResult.Succeeded)
+            {
+                Snackbar.Add($"Removed '{member.FullName}' from company.", Severity.Success);
+                await LoadMembers();
+            }
+            else
+            {
+                Snackbar.Add(removeResult.Error ?? "Failed to remove member.", Severity.Error);
+            }
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

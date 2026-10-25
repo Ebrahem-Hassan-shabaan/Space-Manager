@@ -6,12 +6,10 @@ namespace SpaceManager.DTOs.Companies;
 /// <param name="UserId">The unique identifier of the user account.</param>
 /// <param name="FullName">The full name of the employee.</param>
 /// <param name="Email">The email address of the employee.</param>
-/// <param name="IsCompanyAdmin">Whether this member holds the CompanyAdmin role.</param>
 /// <param name="RegisteredAt">The timestamp when the user registered.</param>
 public record CompanyMemberResponseDto(
     string UserId,
     string FullName,
     string Email,
-    bool IsCompanyAdmin,
     DateTime RegisteredAt
 );

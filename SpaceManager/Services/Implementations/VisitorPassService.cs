@@ -7,6 +7,9 @@ using SpaceManager.Services.Interfaces;
 
 namespace SpaceManager.Services.Implementations;
 
+/// <summary>
+/// Implements visitor pass generation, verification, and reception check-in logging.
+/// </summary>
 public class VisitorPassService : IVisitorPassService
 {
     private readonly AppDbContext _context;

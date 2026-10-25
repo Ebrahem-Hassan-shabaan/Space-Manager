@@ -6,6 +6,9 @@ using SpaceManager.Models;
 
 namespace SpaceManager.Authentication;
 
+/// <summary>
+/// Cached user session state stored in protected browser storage for Blazor server circuits.
+/// </summary>
 public class UserSession
 {
     public string UserId { get; set; } = string.Empty;
@@ -13,6 +16,9 @@ public class UserSession
     public string FullName { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Custom authentication state provider synchronizing user identity and corporate claims with Blazor circuit state.
+/// </summary>
 public class CustomAuthenticationStateProvider : AuthenticationStateProvider
 {
     private readonly ProtectedSessionStorage _sessionStorage;
@@ -53,7 +59,12 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
                 new Claim(ClaimTypes.Email, user.Email ?? string.Empty)
             };
 
-            foreach (var role in roles)
+            if (user.CompanyId.HasValue)
+            {
+                claims.Add(new Claim("CompanyId", user.CompanyId.Value.ToString()));
+            }
+
+        foreach (var role in roles)
             {
                 claims.Add(new Claim(ClaimTypes.Role, role));
             }
@@ -89,6 +100,11 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
             new Claim(ClaimTypes.Name, user.FullName ?? user.UserName ?? user.Email ?? string.Empty),
             new Claim(ClaimTypes.Email, user.Email ?? string.Empty)
         };
+
+        if (user.CompanyId.HasValue)
+        {
+            claims.Add(new Claim("CompanyId", user.CompanyId.Value.ToString()));
+        }
 
         foreach (var role in roles)
         {

@@ -15,11 +15,12 @@ public interface ICompanyService
     Task<IEnumerable<CompanyResponseDto>> GetAllAsync();
 
     /// <summary>
-    /// Retrieves a company by its unique identifier.
+    /// Retrieves a company by its unique identifier. Restricted to administrators or members of the company.
     /// </summary>
     /// <param name="id">The unique identifier of the company.</param>
-    /// <returns>The company response DTO if found; otherwise, null.</returns>
-    Task<CompanyResponseDto?> GetByIdAsync(int id);
+    /// <param name="caller">The identity context of the caller.</param>
+    /// <returns>A service result containing the company response DTO if found and authorized.</returns>
+    Task<ServiceResult<CompanyResponseDto>> GetByIdAsync(int id, CurrentUserContext caller);
 
     /// <summary>
     /// Creates a new corporate company and optionally designates an initial Company Admin.
@@ -33,9 +34,8 @@ public interface ICompanyService
     /// </summary>
     /// <param name="id">The unique identifier of the company to update.</param>
     /// <param name="dto">The update payload.</param>
-    /// <param name="caller">The identity context of the caller.</param>
     /// <returns>A service result containing the updated company response DTO.</returns>
-    Task<ServiceResult<CompanyResponseDto>> UpdateAsync(int id, UpdateCompanyDto dto, CurrentUserContext caller);
+    Task<ServiceResult<CompanyResponseDto>> UpdateAsync(int id, UpdateCompanyDto dto);
 
     /// <summary>
     /// Deletes a company by its unique identifier. (Admin only)
@@ -43,7 +43,7 @@ public interface ICompanyService
     /// </summary>
     /// <param name="id">The unique identifier of the company to delete.</param>
     /// <returns>True if the company was deleted; false if not found.</returns>
-    Task<bool> DeleteAsync(int id);
+    Task<ServiceResult> DeleteAsync(int id);
 
     /// <summary>
     /// Retrieves all active members/employees belonging to a specific company.
@@ -70,4 +70,5 @@ public interface ICompanyService
     /// <param name="caller">The identity context of the caller.</param>
     /// <returns>A service result indicating success or failure.</returns>
     Task<ServiceResult> RemoveMemberAsync(int companyId, string userId, CurrentUserContext caller);
+    Task<ServiceResult> SetCompanyAdminAsync(int companyId, string email);
 }

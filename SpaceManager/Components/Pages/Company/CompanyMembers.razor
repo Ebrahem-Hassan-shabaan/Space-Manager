@@ -1,0 +1,317 @@
+@page "/company/members"
+@attribute [Authorize(Roles = "CompanyAdmin,Admin")]
+@inject ICompanyService CompanyService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-16">
+    @if (_caller?.CompanyId == null && _caller?.IsAdmin != true)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-6" Elevation="2">
+            You do not appear to be affiliated with any corporate company account. If you were recently designated as a Company Administrator, please sign out and sign back in to refresh your corporate credentials.
+        </MudAlert>
+    }
+    else
+    {
+        <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+            <div>
+                <MudText Typo="Typo.h4" Class="font-weight-bold">
+                    @(_company != null ? $"{_company.Name} — Team Members" : "Company Member Management")
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Invite employees to your corporate workspace plan and manage active team accounts.
+                </MudText>
+            </div>
+            @if (_company != null)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Medium" Variant="Variant.Filled">
+                    @_members.Count() @(_members.Count() == 1 ? "Employee" : "Employees")
+                </MudChip>
+            }
+        </div>
+
+        @if (_caller?.IsAdmin == true && _allCompanies != null && _allCompanies.Any())
+        {
+            <MudPaper Class="pa-4 mb-6 rounded-lg" Elevation="2">
+                <MudGrid Class="align-center">
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="int?"
+                                   Label="Switch Company to Manage (Admin Mode)"
+                                   Value="_activeCompanyId"
+                                   ValueChanged="OnCompanySelected"
+                                   Variant="Variant.Outlined"
+                                   Dense="true">
+                            @foreach (var c in _allCompanies)
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)c.Id)">@c.Name (@c.TaxRegistrationNumber)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex align-center">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            As a Platform Admin, you can switch between any company to view and manage employee rosters.
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+
+        @if (_activeCompanyId.HasValue)
+        {
+            <!-- Add Member Input Group -->
+            <MudPaper Elevation="2" Class="pa-4 mb-6 rounded-lg">
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-2">Invite an Employee to Your Company</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Enter the email address of a registered user to associate them with your company workspace membership.
+                </MudText>
+                <div class="d-flex gap-3 align-center">
+                    <MudTextField @bind-Value="_newMemberEmail"
+                                  Placeholder="colleague@yourcompany.com"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  InputType="InputType.Email"
+                                  Class="flex-grow-1" />
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PersonAdd"
+                               Disabled="_isAddingMember"
+                               OnClick="AddMember">
+                        @if (_isAddingMember)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Add Team Member
+                    </MudButton>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_addMemberError))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _addMemberError = null)">
+                        @_addMemberError
+                    </MudAlert>
+                }
+            </MudPaper>
+
+            <!-- Members Table -->
+            <MudTable Items="@FilteredMembers"
+                      Loading="@_isLoading"
+                      Hover="true"
+                      Elevation="2"
+                      Class="rounded-lg">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Active Team Roster</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="_searchString"
+                                  Placeholder="Search member name or email..."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  IconSize="Size.Medium"
+                                  Class="mt-0"
+                                  Immediate="true"
+                                  Clearable="true" />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Employee Name</MudTh>
+                    <MudTh>Email Address</MudTh>
+                    <MudTh>Registered Date</MudTh>
+                    <MudTh Class="text-right">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Employee Name">
+                        <div class="d-flex align-center">
+                            <MudAvatar Color="Color.Primary" Size="Size.Small" Class="mr-2">
+                                @(string.IsNullOrWhiteSpace(context.FullName) ? "?" : context.FullName[0].ToString().ToUpper())
+                            </MudAvatar>
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-medium">@context.FullName</MudText>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Email Address">@context.Email</MudTd>
+                    <MudTd DataLabel="Registered Date">@context.RegisteredAt.ToString("MMMM dd, yyyy")</MudTd>
+                    <MudTd DataLabel="Actions" Class="text-right">
+                        <MudTooltip Text="Remove from Company">
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="@(() => ConfirmRemove(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4 text-center">No team members match your criteria.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4">
+                Please select a company above to view and manage its member roster.
+            </MudAlert>
+        }
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private CurrentUserContext? _caller;
+    private int? _activeCompanyId;
+    private IEnumerable<CompanyResponseDto>? _allCompanies;
+    private CompanyResponseDto? _company;
+    private IEnumerable<CompanyMemberResponseDto> _members = Enumerable.Empty<CompanyMemberResponseDto>();
+    private string _searchString = string.Empty;
+    private string _newMemberEmail = string.Empty;
+    private bool _isLoading = true;
+    private bool _isAddingMember = false;
+    private string? _addMemberError;
+
+    private IEnumerable<CompanyMemberResponseDto> FilteredMembers
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_searchString))
+            {
+                return _members;
+            }
+
+            return _members.Where(m =>
+                m.FullName.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                m.Email.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _caller = authState.User.GetUserContext();
+
+        if (_caller.IsAdmin)
+        {
+            _allCompanies = await CompanyService.GetAllAsync();
+            if (_caller.CompanyId.HasValue)
+            {
+                _activeCompanyId = _caller.CompanyId.Value;
+            }
+            else if (_allCompanies != null && _allCompanies.Any())
+            {
+                _activeCompanyId = _allCompanies.First().Id;
+            }
+        }
+        else if (_caller.CompanyId.HasValue)
+        {
+            _activeCompanyId = _caller.CompanyId.Value;
+        }
+
+        if (_activeCompanyId.HasValue)
+        {
+            await LoadCompanyData(_activeCompanyId.Value);
+        }
+        else
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnCompanySelected(int? companyId)
+    {
+        _activeCompanyId = companyId;
+        if (companyId.HasValue)
+        {
+            await LoadCompanyData(companyId.Value);
+        }
+        else
+        {
+            _company = null;
+            _members = Enumerable.Empty<CompanyMemberResponseDto>();
+        }
+    }
+
+    private async Task LoadCompanyData(int companyId)
+    {
+        if (_caller == null) return;
+        _isLoading = true;
+
+        try
+        {
+            var companyResult = await CompanyService.GetByIdAsync(companyId, _caller);
+            _company = companyResult.Succeeded ? companyResult.Data : null;
+            var membersResult = await CompanyService.GetMembersAsync(companyId, _caller);
+            if (membersResult.Succeeded && membersResult.Data != null)
+            {
+                _members = membersResult.Data;
+            }
+            else
+            {
+                _members = Enumerable.Empty<CompanyMemberResponseDto>();
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task AddMember()
+    {
+        if (!_activeCompanyId.HasValue || string.IsNullOrWhiteSpace(_newMemberEmail) || _caller == null)
+        {
+            _addMemberError = "Please enter a valid user email.";
+            return;
+        }
+
+        _isAddingMember = true;
+        _addMemberError = null;
+
+        try
+        {
+            var result = await CompanyService.AddMemberAsync(_activeCompanyId.Value, _newMemberEmail.Trim(), _caller);
+            if (!result.Succeeded)
+            {
+                _addMemberError = result.Error;
+                return;
+            }
+
+            Snackbar.Add($"Added {_newMemberEmail} to company team!", Severity.Success);
+            _newMemberEmail = string.Empty;
+            await LoadCompanyData(_activeCompanyId.Value);
+        }
+        catch (Exception ex)
+        {
+            _addMemberError = ex.Message;
+        }
+        finally
+        {
+            _isAddingMember = false;
+        }
+    }
+
+    private async Task ConfirmRemove(CompanyMemberResponseDto member)
+    {
+        if (!_activeCompanyId.HasValue || _caller == null) return;
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to remove '{member.FullName}' ({member.Email}) from your company team?" },
+            { x => x.ButtonText, "Remove Employee" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Remove Team Member", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var removeResult = await CompanyService.RemoveMemberAsync(_activeCompanyId.Value, member.UserId, _caller);
+            if (removeResult.Succeeded)
+            {
+                Snackbar.Add($"Removed '{member.FullName}' from company.", Severity.Success);
+                await LoadCompanyData(_activeCompanyId.Value);
+            }
+            else
+            {
+                Snackbar.Add(removeResult.Error ?? "Failed to remove member.", Severity.Error);
+            }
+        }
+    }
+}
+

@@ -1,0 +1,177 @@
+@namespace SpaceManager.Components.Shared
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Notifications
+@using SpaceManager.Services.Interfaces
+@implements IDisposable
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<AuthorizeView>
+    <Authorized>
+        <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)" Class="mr-2">
+            <MudMenu Icon="@Icons.Material.Filled.Notifications"
+                     Color="Color.Inherit"
+                     AnchorOrigin="Origin.BottomRight"
+                     TransformOrigin="Origin.TopRight"
+                     Dense="false"
+                     MaxHeight="480">
+                <div style="min-width: 320px; max-width: 380px;">
+                    <!-- Menu Header -->
+                    <div class="d-flex justify-space-between align-center px-4 py-2">
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Notifications</MudText>
+                        @if (_unreadCount > 0)
+                        {
+                            <MudButton Size="Size.Small"
+                                       Variant="Variant.Text"
+                                       Color="Color.Primary"
+                                       OnClick="MarkAllAsRead">
+                                Mark all read
+                            </MudButton>
+                        }
+                    </div>
+                    <MudDivider />
+
+                    @if (_notifications.Count == 0)
+                    {
+                        <div class="pa-6 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Color="Color.Secondary" Size="Size.Large" Class="mb-1" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No notifications yet.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var item in _notifications)
+                        {
+                            <MudMenuItem OnClick="@(() => OnNotificationClick(item))"
+                                         Class="@(item.IsRead ? "py-2 px-3" : "py-2 px-3")"
+                                         Style="@(item.IsRead ? "" : "background-color: var(--mud-palette-action-default-hover); border-left: 3px solid var(--mud-palette-primary);")">
+                                <div class="d-flex flex-column gap-1" style="max-width: 340px; white-space: normal;">
+                                    <div class="d-flex justify-space-between align-center">
+                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="@(item.IsRead ? Color.Default : Color.Primary)">
+                                            @item.Title
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">
+                                            @GetTimeAgo(item.CreatedAt)
+                                        </MudText>
+                                    </div>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-size: 0.825rem; line-height: 1.25;">
+                                        @item.Message
+                                    </MudText>
+                                </div>
+                            </MudMenuItem>
+                            <MudDivider Class="my-0" />
+                        }
+                    }
+                </div>
+            </MudMenu>
+        </MudBadge>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private string? _userId;
+    private CurrentUserContext? _caller;
+    private int _unreadCount = 0;
+    private List<NotificationResponseDto> _notifications = new();
+    private System.Threading.Timer? _pollingTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            _caller = authState.User.GetUserContext();
+            _userId = _caller.UserId;
+
+            await RefreshData();
+
+            // Set up 30-second polling loop
+            _pollingTimer = new System.Threading.Timer(
+                async _ => await InvokeAsync(RefreshData),
+                null,
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(30));
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        if (string.IsNullOrEmpty(_userId) || _caller == null) return;
+
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+
+            var countResult = await notificationService.GetUnreadCountAsync(_userId);
+            if (countResult.Succeeded)
+            {
+                _unreadCount = countResult.Data;
+            }
+
+            var notifResult = await notificationService.GetMyNotificationsAsync(_caller, page: 1, pageSize: 10);
+            if (notifResult.Succeeded && notifResult.Data != null)
+            {
+                _notifications = notifResult.Data;
+            }
+
+            StateHasChanged();
+        }
+        catch
+        {
+            // Circuit transition fallback
+        }
+    }
+
+    private async Task OnNotificationClick(NotificationResponseDto item)
+    {
+        if (!item.IsRead && _caller != null)
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+            await notificationService.MarkAsReadAsync(item.Id, _caller);
+            item.IsRead = true;
+            _unreadCount = Math.Max(0, _unreadCount - 1);
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.ActionUrl))
+        {
+            Navigation.NavigateTo(item.ActionUrl);
+        }
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        if (_caller == null) return;
+
+        using var scope = ScopeFactory.CreateScope();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        var result = await notificationService.MarkAllAsReadAsync(_caller);
+        if (result.Succeeded)
+        {
+            _unreadCount = 0;
+            foreach (var n in _notifications)
+                n.IsRead = true;
+
+            StateHasChanged();
+        }
+    }
+
+    private string GetTimeAgo(DateTime createdAt)
+    {
+        var span = DateTime.UtcNow - createdAt;
+        if (span.TotalMinutes < 1) return "Just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        return createdAt.ToString("MMM dd");
+    }
+
+    public void Dispose()
+    {
+        _pollingTimer?.Dispose();
+    }
+}

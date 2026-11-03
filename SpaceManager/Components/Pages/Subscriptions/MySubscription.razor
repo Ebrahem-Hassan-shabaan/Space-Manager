@@ -1,0 +1,234 @@
+@page "/subscriptions/my"
+@attribute [Authorize]
+@namespace SpaceManager.Components.Pages.Subscriptions
+@using SpaceManager.Common
+@using SpaceManager.Components.Pages.Invoices.Dialogs
+@using SpaceManager.DTOs.Subscriptions
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
+@inject ISubscriptionService SubscriptionService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4 mb-16">
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">My Membership</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Manage your active workspace tier, view booking quotas, and adjust renewal settings.
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.ViewAgenda"
+                   Href="/subscriptions/plans">
+            Browse All Plans
+        </MudButton>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center pa-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (_subscription == null)
+    {
+        <MudCard Elevation="2" Class="rounded-lg pa-8 text-center">
+            <MudIcon Icon="@Icons.Material.Filled.CardMembership" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+            <MudText Typo="Typo.h5" Class="font-weight-bold mb-2">No Active Membership</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6" Style="max-width: 480px; margin: 0 auto;">
+                You are currently on pay-per-booking. Upgrade to a membership plan for unlimited visits, zero hourly fees, and instant holds.
+            </MudText>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.RocketLaunch"
+                       Href="/subscriptions/plans">
+                Explore Membership Plans
+            </MudButton>
+        </MudCard>
+    }
+    else
+    {
+        <MudCard Elevation="3" Class="rounded-lg pa-6 mb-6">
+            <!-- Header section -->
+            <div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-4">
+                <div>
+                    <div class="d-flex align-center gap-2">
+                        <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">
+                            @_subscription.PlanName
+                        </MudText>
+                        <MudChip T="string" Color="@GetStatusColor(_subscription.Status)" Size="Size.Small" Variant="Variant.Filled">
+                            @_subscription.StatusDisplay
+                        </MudChip>
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Enrolled on @_subscription.StartDate.ToString("MMM dd, yyyy")
+                    </MudText>
+                </div>
+                <div class="text-right">
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">
+                        @_subscription.MonthlyPrice.ToString("0.00") EGP
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Billing cycle: @_subscription.DurationMonths @(_subscription.DurationMonths == 1 ? "month" : "months")
+                    </MudText>
+                </div>
+            </div>
+
+            <MudDivider Class="my-4" />
+
+            <!-- Metrics Grid -->
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Access Level</MudText>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                            @(_subscription.IsAllAccess ? "All-Access Platform Pass" : $"{_subscription.WorkspaceTypeName} Only")
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Days Remaining</MudText>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold" Color="Color.Primary">
+                            @_subscription.DaysRemaining Days (Expires @_subscription.EndDate.ToString("MMM dd, yyyy"))
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="4">
+                    <MudPaper Elevation="0" Class="pa-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Monthly Booking Quota</MudText>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold" Color="Color.Success">
+                            @if (_subscription.MaxBookingsPerMonth == 0)
+                            {
+                                <span>Unlimited (@_subscription.BookingsUsedThisMonth used this month)</span>
+                            }
+                            else
+                            {
+                                <span>@_subscription.BookingsUsedThisMonth / @_subscription.MaxBookingsPerMonth Bookings</span>
+                            }
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Settings & Actions -->
+            <div class="d-flex justify-space-between align-center flex-wrap gap-4 pt-2">
+                @if (_subscription.Status == SubscriptionStatus.Active)
+                {
+                    <MudSwitch T="bool"
+                               Value="@_subscription.IsAutoRenew"
+                               ValueChanged="@OnToggleAutoRenew"
+                               Color="Color.Primary"
+                               Label="Automatic Renewal" />
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="PromptCancelSubscription">
+                        Cancel Subscription
+                    </MudButton>
+                }
+                else if (_subscription.Status == SubscriptionStatus.Cancelled)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="my-2" NoIcon="false">
+                        Your subscription has been cancelled. You retain full access privileges until @_subscription.EndDate.ToString("MMM dd, yyyy").
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Error" Class="my-2">
+                        Your membership has expired. Resubscribe to restore booking benefits.
+                    </MudAlert>
+                }
+            </div>
+        </MudCard>
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private CurrentUserContext? _caller;
+    private UserSubscriptionResponseDto? _subscription;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubscription();
+    }
+
+    private async Task LoadSubscription()
+    {
+        _isLoading = true;
+        var authState = await AuthStateTask;
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            _caller = authState.User.GetUserContext();
+            var result = await SubscriptionService.GetMySubscriptionAsync(_caller);
+            if (result.Succeeded)
+            {
+                _subscription = result.Data;
+            }
+        }
+        _isLoading = false;
+    }
+
+    private async Task OnToggleAutoRenew(bool enable)
+    {
+        if (_caller == null || _subscription == null) return;
+
+        var result = await SubscriptionService.ToggleAutoRenewAsync(enable, _caller);
+        if (result.Succeeded)
+        {
+            _subscription.IsAutoRenew = enable;
+            Snackbar.Add(enable ? "Auto-renew enabled." : "Auto-renew disabled.", Severity.Info);
+        }
+        else
+        {
+            Snackbar.Add(result.Error ?? "Failed to update auto-renew.", Severity.Error);
+        }
+    }
+
+    private async Task PromptCancelSubscription()
+    {
+        if (_caller == null || _subscription == null) return;
+
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to cancel your '{_subscription.PlanName}' subscription? You will continue to have membership benefits until {_subscription.EndDate:MMM dd, yyyy}, but your plan will not automatically renew." },
+            { x => x.ButtonText, "Yes, Cancel Membership" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Cancel Membership", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var cancelResult = await SubscriptionService.CancelSubscriptionAsync(_caller);
+            if (cancelResult.Succeeded)
+            {
+                Snackbar.Add("Subscription cancelled. You retain benefits until the end of your billing period.", Severity.Warning);
+                await LoadSubscription();
+            }
+            else
+            {
+                Snackbar.Add(cancelResult.Error ?? "Failed to cancel subscription.", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetStatusColor(SubscriptionStatus status) => status switch
+    {
+        SubscriptionStatus.Active => Color.Success,
+        SubscriptionStatus.Cancelled => Color.Warning,
+        SubscriptionStatus.Expired => Color.Error,
+        _ => Color.Default
+    };
+}

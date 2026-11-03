@@ -1,0 +1,327 @@
+@page "/invoices"
+@attribute [Authorize]
+@namespace SpaceManager.Components.Pages.Invoices
+@using SpaceManager.Common
+@using SpaceManager.Components.Pages.Invoices.Dialogs
+@using SpaceManager.DTOs.Invoices
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
+@inject IInvoiceService InvoiceService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-16">
+    <!-- Header -->
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">@GetPageTitle()</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                @GetPageSubtitle()
+            </MudText>
+        </div>
+        @if (_caller?.IsAdmin == true)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.AddCard"
+                       OnClick="OpenCreateManualDialog">
+                Issue Manual Invoice
+            </MudButton>
+        }
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="rounded-lg">
+                <MudCardContent Class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Total Invoiced</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">
+                            @((_invoices?.Sum(i => i.Amount) ?? 0m).ToString("0.00")) EGP
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@(_invoices?.Count() ?? 0) invoices recorded</MudText>
+                    </div>
+                    <MudAvatar Color="Color.Primary" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+                    </MudAvatar>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="rounded-lg">
+                <MudCardContent Class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Color="Color.Success">Settled Revenue</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Success" Class="font-weight-bold">
+                            @((_invoices?.Sum(i => i.AmountPaid) ?? 0m).ToString("0.00")) EGP
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Success">Collected payments</MudText>
+                    </div>
+                    <MudAvatar Color="Color.Success" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                    </MudAvatar>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="rounded-lg">
+                <MudCardContent Class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Color="Color.Error">Outstanding Balance</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Error" Class="font-weight-bold">
+                            @((_invoices?.Where(i => i.Status != InvoiceStatus.Cancelled).Sum(i => i.RemainingBalance) ?? 0m).ToString("0.00")) EGP
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Error">Awaiting settlement</MudText>
+                    </div>
+                    <MudAvatar Color="Color.Error" Size="Size.Large">
+                        <MudIcon Icon="@Icons.Material.Filled.PendingActions" />
+                    </MudAvatar>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Filters & Table -->
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6" ActivePanelIndexChanged="OnTabChanged">
+        <MudTabPanel Text="All Invoices" Icon="@Icons.Material.Filled.ListAlt">
+            @RenderTable()
+        </MudTabPanel>
+        <MudTabPanel Text="Unpaid & Due" Icon="@Icons.Material.Filled.Warning">
+            @RenderTable()
+        </MudTabPanel>
+        <MudTabPanel Text="Paid & Settled" Icon="@Icons.Material.Filled.CheckCircle">
+            @RenderTable()
+        </MudTabPanel>
+        <MudTabPanel Text="Cancelled" Icon="@Icons.Material.Filled.Cancel">
+            @RenderTable()
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private CurrentUserContext? _caller;
+    private IEnumerable<InvoiceResponseDto>? _invoices;
+    private bool _isLoading = true;
+    private int _currentTabIndex = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _caller = authState.User.GetUserContext();
+        await LoadInvoices();
+    }
+
+    private async Task OnTabChanged(int index)
+    {
+        _currentTabIndex = index;
+        await LoadInvoices();
+    }
+
+    private async Task LoadInvoices()
+    {
+        if (_caller == null) return;
+        _isLoading = true;
+
+        InvoiceStatus? statusFilter = _currentTabIndex switch
+        {
+            1 => InvoiceStatus.Issued,
+            2 => InvoiceStatus.Paid,
+            3 => InvoiceStatus.Cancelled,
+            _ => null
+        };
+
+        var filter = new InvoiceFilterDto(Status: statusFilter);
+        _invoices = await InvoiceService.GetAllAsync(_caller, filter);
+        _isLoading = false;
+    }
+
+    private RenderFragment RenderTable() => __builder =>
+    {
+        if (_isLoading)
+        {
+            <div class="d-flex justify-center pa-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else if (_invoices == null || !_invoices.Any())
+        {
+            <MudAlert Severity="Severity.Info" Class="my-4">
+                No invoices found in this view.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_invoices" Dense="false" Hover="true" Elevation="0" Class="rounded-lg">
+                <HeaderContent>
+                    <MudTh>Invoice #</MudTh>
+                    <MudTh>Billed To</MudTh>
+                    <MudTh>Issued</MudTh>
+                    <MudTh>Due Date</MudTh>
+                    <MudTh Style="text-align: right;">Total Amount</MudTh>
+                    <MudTh Style="text-align: right;">Remaining</MudTh>
+                    <MudTh Style="text-align: center;">Status</MudTh>
+                    <MudTh Style="text-align: center;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Invoice #">
+                        <strong>#INV-@context.Id</strong>
+                    </MudTd>
+                    <MudTd DataLabel="Billed To">
+                        <div>
+                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold">
+                                @(!string.IsNullOrEmpty(context.CompanyName) ? context.CompanyName : context.UserName ?? "Direct Client")
+                            </MudText>
+                            @if (!string.IsNullOrEmpty(context.UserEmail))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.UserEmail</MudText>
+                            }
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Issued">@context.IssuedDate.ToLocalFromUtc().ToString("MMM dd, yyyy")</MudTd>
+                    <MudTd DataLabel="Due Date">
+                        <span class="@(context.DueDate < DateTime.UtcNow && context.Status != InvoiceStatus.Paid ? "text-danger font-weight-bold" : "")">
+                            @context.DueDate.ToLocalFromUtc().ToString("MMM dd, yyyy")
+                        </span>
+                    </MudTd>
+                    <MudTd DataLabel="Total Amount" Style="text-align: right;" Class="font-weight-bold">
+                        @context.Amount.ToString("0.00") EGP
+                    </MudTd>
+                    <MudTd DataLabel="Remaining" Style="text-align: right;">
+                        <span class="@(context.RemainingBalance > 0 ? "text-danger font-weight-bold" : "text-success font-weight-bold")">
+                            @context.RemainingBalance.ToString("0.00") EGP
+                        </span>
+                    </MudTd>
+                    <MudTd DataLabel="Status" Style="text-align: center;">
+                        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Filled">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions" Style="text-align: center;">
+                        <div class="d-flex justify-center gap-1">
+                            @if (context.RemainingBalance > 0 && context.Status != InvoiceStatus.Cancelled)
+                            {
+                                <MudButton Size="Size.Small"
+                                           Color="Color.Primary"
+                                           Variant="Variant.Filled"
+                                           StartIcon="@Icons.Material.Filled.Payment"
+                                           OnClick="@(() => OpenPayDialog(context))">
+                                    Pay
+                                </MudButton>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                           Color="Color.Default"
+                                           Size="Size.Small"
+                                           aria-label="View Details"
+                                           OnClick="@(() => OpenDetailsDialog(context.Id))" />
+                            @if (_caller?.IsAdmin == true && context.Status == InvoiceStatus.Issued)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               aria-label="Cancel Invoice"
+                                               OnClick="@(() => PromptCancelInvoice(context))" />
+                            }
+                        </div>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    };
+
+    private async Task OpenPayDialog(InvoiceResponseDto invoice)
+    {
+        var parameters = new DialogParameters<PayInvoiceDialog>
+        {
+            { x => x.InvoiceId, invoice.Id },
+            { x => x.Amount, invoice.Amount },
+            { x => x.RemainingAmount, invoice.RemainingBalance }
+        };
+
+        var dialog = await DialogService.ShowAsync<PayInvoiceDialog>("Pay Invoice", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadInvoices();
+        }
+    }
+
+    private async Task OpenDetailsDialog(int invoiceId)
+    {
+        var parameters = new DialogParameters<InvoiceDetailsDialog>
+        {
+            { x => x.InvoiceId, invoiceId }
+        };
+
+        var dialog = await DialogService.ShowAsync<InvoiceDetailsDialog>($"Invoice Details #{invoiceId}", parameters);
+        await dialog.Result;
+        await LoadInvoices();
+    }
+
+    private async Task OpenCreateManualDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateManualInvoiceDialog>("Issue Manual Invoice");
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadInvoices();
+        }
+    }
+
+    private async Task PromptCancelInvoice(InvoiceResponseDto invoice)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to cancel Invoice #{invoice.Id} ({invoice.Amount:0.00} EGP)? This will void the invoice and release any associated reservation hold." },
+            { x => x.ButtonText, "Yes, Cancel Invoice" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Cancel Invoice", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var cancelResult = await InvoiceService.CancelAsync(invoice.Id);
+            if (cancelResult.Succeeded)
+            {
+                Snackbar.Add($"Invoice #{invoice.Id} has been cancelled.", Severity.Success);
+                await LoadInvoices();
+            }
+            else
+            {
+                Snackbar.Add(cancelResult.Error ?? "Failed to cancel invoice.", Severity.Error);
+            }
+        }
+    }
+
+    private string GetPageTitle() => _caller switch
+    {
+        { IsAdmin: true } => "Platform Billing & Invoices",
+        { IsCompanyAdmin: true } => "Corporate Invoices",
+        _ => "My Invoices & Receipts"
+    };
+
+    private string GetPageSubtitle() => _caller switch
+    {
+        { IsAdmin: true } => "Monitor platform revenue, issue ad-hoc corporate billing, and manage settlements.",
+        { IsCompanyAdmin: true } => "Track and settle monthly workspace invoices for your corporate account.",
+        _ => "View your reservation statements, payment history, and settle outstanding balances."
+    };
+
+    private Color GetStatusColor(InvoiceStatus status) => status switch
+    {
+        InvoiceStatus.Paid => Color.Success,
+        InvoiceStatus.Issued => Color.Warning,
+        InvoiceStatus.PartiallyPaid => Color.Info,
+        InvoiceStatus.Overdue => Color.Error,
+        InvoiceStatus.Cancelled => Color.Default,
+        InvoiceStatus.Refunded => Color.Dark,
+        _ => Color.Default
+    };
+}

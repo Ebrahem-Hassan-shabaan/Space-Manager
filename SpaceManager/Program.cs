@@ -14,6 +14,11 @@ using Microsoft.AspNetCore.Components.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var defaultCulture = new System.Globalization.CultureInfo("en-EG");
+defaultCulture.NumberFormat.CurrencySymbol = "EGP ";
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = defaultCulture;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = defaultCulture;
+
 builder.Services.AddControllers();
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
@@ -70,6 +75,13 @@ builder.Services.AddScoped<IMaintenanceTicketService, MaintenanceTicketService>(
 builder.Services.AddScoped<IAmenityService, AmenityService>();
 builder.Services.AddScoped<IAddOnService, AddOnService>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IPaymentGateway, MockPaymentGateway>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<INotificationChannelHandler, InAppNotificationChannelHandler>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 
 var app = builder.Build();
 

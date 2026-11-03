@@ -1,0 +1,257 @@
+@namespace SpaceManager.Components.Pages.Subscriptions.Dialogs
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Subscriptions
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
+@inject ISubscriptionService SubscriptionService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4 py-2">
+            <!-- Plan Summary Card -->
+            <MudCard Elevation="0" Class="pa-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                <div class="d-flex justify-space-between align-center mb-1">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold" Color="Color.Primary">@Plan.Name</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">
+                        @Plan.MonthlyPrice.ToString("0.00") EGP
+                    </MudText>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Billing cycle: every @Plan.DurationMonths @(Plan.DurationMonths == 1 ? "month" : "months")
+                </MudText>
+
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <MudChip T="string" Size="Size.Small" Color="@(Plan.IsAllAccess ? Color.Secondary : Color.Info)" Variant="Variant.Filled">
+                        @(Plan.IsAllAccess ? "All-Access Pass" : $"{Plan.WorkspaceTypeName} Only")
+                    </MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                        @(Plan.MaxBookingsPerMonth == 0 ? "Unlimited Bookings" : $"{Plan.MaxBookingsPerMonth} Bookings/Month")
+                    </MudChip>
+                </div>
+            </MudCard>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-1" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                    @_errorMessage
+                </MudAlert>
+            }
+
+            <!-- Payment Method Selection -->
+            <div>
+                <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Payment Method</MudText>
+                <MudRadioGroup @bind-Value="_paymentMethod">
+                    <MudRadio Value="PaymentMethod.CreditCard" Color="Color.Primary">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.CreditCard" Color="Color.Primary" />
+                            <span>Credit Card (Online Checkout)</span>
+                        </div>
+                    </MudRadio>
+                    <MudRadio Value="PaymentMethod.DebitCard" Color="Color.Primary">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Info" />
+                            <span>Debit Card</span>
+                        </div>
+                    </MudRadio>
+                    @if (_isCorporateUser)
+                    {
+                        <MudRadio Value="PaymentMethod.CompanyBalance" Color="Color.Primary">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.CorporateFare" Color="Color.Secondary" />
+                                <span>Corporate Account Balance</span>
+                            </div>
+                        </MudRadio>
+                    }
+                </MudRadioGroup>
+            </div>
+
+            <!-- Card Details Input (When paying by card) -->
+            @if (_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard)
+            {
+                <MudPaper Elevation="0" Class="pa-4 rounded-lg" Style="border: 1px solid var(--mud-palette-lines-default);">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3">Card Information</MudText>
+                    
+                    <MudTextField @bind-Value="_cardholderName"
+                                  Label="Cardholder Name"
+                                  Placeholder="e.g. Ebrahem Mohamed"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-3" />
+
+                    <MudTextField @bind-Value="_cardNumber"
+                                  Label="Card Number"
+                                  Placeholder="4242 4242 4242 4242"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.CreditCard"
+                                  Class="mb-3" />
+
+                    <MudGrid>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="_expiryDate"
+                                          Label="Expiration (MM/YY)"
+                                          Placeholder="12/28"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="_cvv"
+                                          Label="CVV / CVC"
+                                          Placeholder="123"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <!-- Test Gateway Simulator Scenarios -->
+                    <div class="mt-4 pt-3" style="border-top: 1px dashed var(--mud-palette-lines-default);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2 font-weight-bold">
+                            🧪 Test Gateway Scenarios (Click to auto-fill):
+                        </MudText>
+                        <div class="d-flex flex-wrap gap-2">
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("SUCCESS"))">
+                                ✓ Valid Card (Approved)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("INSUFFICIENT"))">
+                                ✗ Insufficient Funds (...0002)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("EXPIRED"))">
+                                ✗ Expired Card (...0003)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("FRAUD"))">
+                                ✗ Fraud Suspected (...0005)
+                            </MudChip>
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+
+            <MudSwitch @bind-Value="_autoRenew"
+                       Label="Enable automatic monthly renewal"
+                       Color="Color.Primary" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                   Disabled="_isProcessing"
+                   OnClick="ProcessSubscription">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Processing Payment...</span>
+            }
+            else
+            {
+                <span>Pay @Plan.MonthlyPrice.ToString("0.00") EGP & Subscribe</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [Parameter]
+    public SubscriptionPlanResponseDto Plan { get; set; } = default!;
+
+    private PaymentMethod _paymentMethod = PaymentMethod.CreditCard;
+    private string _cardholderName = "Ebrahem Mohamed";
+    private string _cardNumber = "4242 4242 4242 4242";
+    private string _expiryDate = "12/28";
+    private string _cvv = "123";
+    private bool _autoRenew = true;
+    private bool _isProcessing = false;
+    private bool _isCorporateUser = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            var caller = authState.User.GetUserContext();
+            _isCorporateUser = caller.CompanyId.HasValue || caller.IsCompanyAdmin;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void SetScenario(string scenario)
+    {
+        _errorMessage = null;
+        switch (scenario)
+        {
+            case "SUCCESS":
+                _cardNumber = "4242 4242 4242 4242";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Ebrahem Mohamed";
+                break;
+            case "INSUFFICIENT":
+                _cardNumber = "4000 0000 0000 0002";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Test Low Balance";
+                break;
+            case "EXPIRED":
+                _cardNumber = "4000 0000 0000 0003";
+                _expiryDate = "01/22";
+                _cvv = "123";
+                _cardholderName = "Test Expired Card";
+                break;
+            case "FRAUD":
+                _cardNumber = "4000 0000 0000 0005";
+                _expiryDate = "12/28";
+                _cvv = "999";
+                _cardholderName = "Test Suspect Card";
+                break;
+        }
+    }
+
+    private async Task ProcessSubscription()
+    {
+        var authState = await AuthStateTask;
+        var caller = authState.User.GetUserContext();
+
+        if ((_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard) &&
+            string.IsNullOrWhiteSpace(_cardNumber))
+        {
+            _errorMessage = "Please enter your card number.";
+            return;
+        }
+
+        _isProcessing = true;
+        _errorMessage = null;
+
+        var request = new SubscribeRequestDto
+        {
+            PlanId = Plan.Id,
+            PaymentMethod = _paymentMethod,
+            IsAutoRenew = _autoRenew,
+            CardNumber = _cardNumber.Replace(" ", ""),
+            CardholderName = _cardholderName,
+            ExpiryMonthYear = _expiryDate,
+            Cvv = _cvv
+        };
+
+        var result = await SubscriptionService.SubscribeAsync(request, caller);
+        _isProcessing = false;
+
+        if (result.Succeeded)
+        {
+            Snackbar.Add($"Successfully subscribed to {Plan.Name}!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.Error ?? "Subscription payment was declined.";
+            Snackbar.Add(_errorMessage, Severity.Error);
+        }
+    }
+}

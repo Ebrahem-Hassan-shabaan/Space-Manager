@@ -1,0 +1,206 @@
+@page "/subscriptions/plans"
+@namespace SpaceManager.Components.Pages.Subscriptions
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Subscriptions
+@using SpaceManager.Services.Interfaces
+@inject ISubscriptionService SubscriptionService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-16">
+    <!-- Header -->
+    <div class="d-flex justify-space-between align-center flex-wrap gap-4 mb-8">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold">Membership Plans</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Unlock instant bookings, zero room rates, and VIP workspace privileges.
+            </MudText>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CardMembership"
+                           Href="/subscriptions/my">
+                    View My Membership
+                </MudButton>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Href="/auth/login">
+                    Sign In to Subscribe
+                </MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center pa-12">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+        </div>
+    }
+    else if (_plans == null || !_plans.Any())
+    {
+        <MudAlert Severity="Severity.Info" Class="my-6">
+            No active membership plans are currently published. Please check back soon!
+        </MudAlert>
+    }
+    else
+    {
+        <MudGrid>
+            @foreach (var plan in _plans)
+            {
+                var isCurrentPlan = _mySubscription?.SubscriptionPlanId == plan.Id && _mySubscription.IsActive;
+
+                <MudItem xs="12" md="4">
+                    <MudCard Elevation="isCurrentPlan ? 4 : 2"
+                             Class="rounded-lg d-flex flex-column justify-space-between h-100"
+                             Style="@(isCurrentPlan ? "border: 2px solid var(--mud-palette-primary);" : "")">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold">@plan.Name</MudText>
+                                    @if (isCurrentPlan)
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Filled">Current Plan</MudChip>
+                                    }
+                                </div>
+                                <div class="d-flex align-baseline gap-1 mt-2">
+                                    <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">
+                                        @plan.MonthlyPrice.ToString("0.00")
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        EGP / month
+                                    </MudText>
+                                </div>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+
+                        <MudCardContent>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                                @plan.Description
+                            </MudText>
+
+                            <MudDivider Class="my-3" />
+
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2">
+                                        @(plan.IsAllAccess ? "All-Access Pass (Any workspace)" : $"{plan.WorkspaceTypeName} Only")
+                                    </MudText>
+                                </div>
+
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2">
+                                        @(plan.MaxBookingsPerMonth == 0 ? "Unlimited monthly bookings" : $"Up to {plan.MaxBookingsPerMonth} bookings / month")
+                                    </MudText>
+                                </div>
+
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2">
+                                        Instant confirmation (0 wait time)
+                                    </MudText>
+                                </div>
+
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                                    <MudText Typo="Typo.body2">
+                                        Zero room rate charges
+                                    </MudText>
+                                </div>
+                            </div>
+                        </MudCardContent>
+
+                        <MudCardActions Class="pa-4">
+                            <AuthorizeView>
+                                <Authorized>
+                                    @if (isCurrentPlan)
+                                    {
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Color="Color.Primary"
+                                                   FullWidth="true"
+                                                   Href="/subscriptions/my">
+                                            Manage Membership
+                                        </MudButton>
+                                    }
+                                    else
+                                    {
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
+                                                   FullWidth="true"
+                                                   OnClick="@(() => OpenSubscribeDialog(plan))">
+                                            Subscribe Now
+                                        </MudButton>
+                                    }
+                                </Authorized>
+                                <NotAuthorized>
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               FullWidth="true"
+                                               Href="/auth/login">
+                                        Sign In to Subscribe
+                                    </MudButton>
+                                </NotAuthorized>
+                            </AuthorizeView>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private CurrentUserContext? _caller;
+    private List<SubscriptionPlanResponseDto>? _plans;
+    private UserSubscriptionResponseDto? _mySubscription;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            _caller = authState.User.GetUserContext();
+            var mySubResult = await SubscriptionService.GetMySubscriptionAsync(_caller);
+            if (mySubResult.Succeeded)
+            {
+                _mySubscription = mySubResult.Data;
+            }
+        }
+
+        var plansResult = await SubscriptionService.GetAllActivePlansAsync();
+        if (plansResult.Succeeded)
+        {
+            _plans = plansResult.Data;
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task OpenSubscribeDialog(SubscriptionPlanResponseDto plan)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Subscriptions.Dialogs.SubscribeDialog>
+        {
+            { x => x.Plan, plan }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Subscriptions.Dialogs.SubscribeDialog>("Confirm Subscription", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            Navigation.NavigateTo("/subscriptions/my");
+        }
+    }
+}

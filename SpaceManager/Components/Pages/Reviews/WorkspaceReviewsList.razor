@@ -1,0 +1,111 @@
+@namespace SpaceManager.Components.Pages.Reviews
+@using SpaceManager.DTOs.Reviews
+@using SpaceManager.Services.Interfaces
+@inject IReviewService ReviewService
+
+<div class="reviews-section my-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h5" Class="font-weight-bold">Member Reviews</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Verified feedback from coworkers and teams who reserved this space.
+            </MudText>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex justify-center pa-8">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (_summary == null || _summary.TotalReviews == 0)
+    {
+        <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Class="my-4">
+            No reviews yet for this workspace. Be the first to book and share your thoughts!
+        </MudAlert>
+    }
+    else
+    {
+        <!-- Summary Stats Card -->
+        <MudCard Elevation="1" Class="rounded-lg mb-6 pa-4">
+            <MudGrid Class="align-center">
+                <MudItem xs="12" md="4" Class="text-center">
+                    <MudText Typo="Typo.h2" Class="font-weight-bold" Color="Color.Primary">
+                        @_summary.AverageRating.ToString("0.0")
+                    </MudText>
+                    <MudRating SelectedValue="@((int)Math.Round(_summary.AverageRating))" ReadOnly="true" MaxValue="5" Color="Color.Warning" Size="Size.Medium" Class="my-1" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Based on @_summary.TotalReviews @(_summary.TotalReviews == 1 ? "review" : "reviews")
+                    </MudText>
+                </MudItem>
+
+                <MudItem xs="12" md="8">
+                    @for (int star = 5; star >= 1; star--)
+                    {
+                        var starCount = _summary.RatingDistribution.GetValueOrDefault(star, 0);
+                        var percentage = _summary.TotalReviews > 0 ? (starCount * 100 / _summary.TotalReviews) : 0;
+                        <div class="d-flex align-center gap-2 mb-1">
+                            <MudText Typo="Typo.caption" Style="min-width: 45px;">@star ★</MudText>
+                            <MudProgressLinear Color="Color.Warning" Value="@percentage" Class="my-1 rounded" Style="height: 8px;" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="min-width: 30px;" Class="text-right">
+                                @starCount
+                            </MudText>
+                        </div>
+                    }
+                </MudItem>
+            </MudGrid>
+        </MudCard>
+
+        <!-- Reviews List -->
+        <div class="d-flex flex-column gap-3">
+            @foreach (var review in _summary.Reviews)
+            {
+                <MudCard Elevation="1" Class="rounded-lg pa-4">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <div class="d-flex align-center gap-2">
+                            <MudAvatar Color="Color.Primary" Size="Size.Small">
+                                @(string.IsNullOrEmpty(review.UserName) ? "U" : review.UserName[0].ToString().ToUpperInvariant())
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@review.UserName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@review.CreatedAt.ToString("MMM dd, yyyy")</MudText>
+                            </div>
+                        </div>
+                        <MudRating SelectedValue="@review.Rating" ReadOnly="true" MaxValue="5" Color="Color.Warning" Size="Size.Small" />
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(review.Comment))
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2 text-pre-wrap">
+                            @review.Comment
+                        </MudText>
+                    }
+                </MudCard>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int WorkspaceId { get; set; }
+
+    private WorkspaceReviewsSummaryDto? _summary;
+    private bool _isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadReviews();
+    }
+
+    private async Task LoadReviews()
+    {
+        _isLoading = true;
+        var result = await ReviewService.GetWorkspaceReviewsAsync(WorkspaceId, page: 1, pageSize: 20);
+        if (result.Succeeded)
+        {
+            _summary = result.Data;
+        }
+        _isLoading = false;
+    }
+}

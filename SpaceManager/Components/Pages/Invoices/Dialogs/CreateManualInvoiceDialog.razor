@@ -1,0 +1,129 @@
+@namespace SpaceManager.Components.Pages.Invoices.Dialogs
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Invoices
+@using SpaceManager.Services.Interfaces
+@inject IInvoiceService InvoiceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.PostAdd" Color="Color.Primary" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Issue Manual Invoice</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Create an ad-hoc or corporate invoice directly for a user or company account.
+        </MudText>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudNumericField T="decimal"
+                         Label="Invoice Amount (EGP)"
+                         @bind-Value="_amount"
+                         Min="1"
+                         Format="F2"
+                         Variant="Variant.Outlined"
+                         Required="true"
+                         Class="mb-3" />
+
+        <MudDatePicker Label="Due Date"
+                       @bind-Date="_dueDate"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       Class="mb-3" />
+
+        <MudTextField @bind-Value="_userId"
+                      Label="Debtor User ID (Optional)"
+                      Placeholder="Leave empty if billing a company"
+                      Variant="Variant.Outlined"
+                      Class="mb-3" />
+
+        <MudNumericField T="int?"
+                         Label="Company ID (Optional)"
+                         @bind-Value="_companyId"
+                         Placeholder="Leave empty if billing a retail user"
+                         Variant="Variant.Outlined"
+                         Class="mb-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_isSubmitting">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_isSubmitting || _amount <= 0 || !_dueDate.HasValue"
+                   OnClick="Submit">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Issuing...</span>
+            }
+            else
+            {
+                <span>Issue Invoice</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private decimal _amount = 100m;
+    private DateTime? _dueDate = DateTime.Today.AddDays(30);
+    private string? _userId;
+    private int? _companyId;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_userId) && !_companyId.HasValue)
+        {
+            _errorMessage = "You must specify either a Debtor User ID or a Company ID.";
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var dto = new CreateInvoiceDto(
+                Amount: _amount,
+                DueDate: _dueDate!.Value.ToUniversalTime(),
+                UserId: string.IsNullOrWhiteSpace(_userId) ? null : _userId.Trim(),
+                CompanyId: _companyId,
+                WorkspaceBookingId: null
+            );
+
+            var result = await InvoiceService.CreateManualAsync(dto);
+
+            if (result.Succeeded)
+            {
+                Snackbar.Add($"Invoice #{result.Data!.Id} created successfully.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Failed to create invoice.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

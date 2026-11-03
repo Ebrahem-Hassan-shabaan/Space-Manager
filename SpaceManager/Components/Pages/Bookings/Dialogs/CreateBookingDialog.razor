@@ -1,106 +1,359 @@
 @namespace SpaceManager.Components.Pages.Bookings.Dialogs
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Bookings
+@using SpaceManager.DTOs.Payments
+@using SpaceManager.DTOs.ServiceAddOns
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
 @inject IBookingService BookingService
+@inject IPaymentService PaymentService
+@inject IAddOnService AddOnService
+@inject ISubscriptionService SubscriptionService
+@inject IServiceScopeFactory ScopeFactory
 @inject ISnackbar Snackbar
+@implements IAsyncDisposable
 
 <MudDialog>
     <TitleContent>
-        <div class="d-flex align-center">
-            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Primary" Class="mr-2" />
-            <MudText Typo="Typo.h6">Reserve @Workspace.Name</MudText>
+        <div class="d-flex align-center justify-space-between w-100">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@(_currentStep == 1 ? Icons.Material.Filled.CalendarMonth : Icons.Material.Filled.Payment)"
+                         Color="Color.Primary"
+                         Class="mr-2" />
+                <MudText Typo="Typo.h6">
+                    @(_currentStep == 1 ? $"Reserve {Workspace.Name}" : "Checkout & Payment")
+                </MudText>
+            </div>
+            @if (_currentStep == 2)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Lock">
+                    Step 2 of 2: Payment
+                </MudChip>
+            }
         </div>
     </TitleContent>
     <DialogContent>
-        <div class="mb-4">
-            <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@Workspace.WorkspaceTypeName</MudChip>
-            <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">Capacity: @Workspace.Capacity people</MudChip>
-            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">$@Workspace.PricePerHour / hr</MudChip>
-        </div>
-
-        @if (_conflictDetails != null && _conflictDetails.ConflictingSlots.Any())
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _conflictDetails = null)">
-                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-1">
-                    Scheduling Conflict
-                </MudText>
-                <MudText Typo="Typo.body2" Class="mb-2">
-                    This workspace is already reserved during the following slot(s):
-                </MudText>
-                <div class="d-flex flex-wrap gap-2 mb-2">
-                    @foreach (var slot in _conflictDetails.ConflictingSlots)
-                    {
-                        <MudChip T="string" Color="Color.Surface" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.AccessTimeFilled">
-                            @slot.StartTime.ToLocalFromUtc().ToString("h:mm tt") – @slot.EndTime.ToLocalFromUtc().ToString("h:mm tt")
-                        </MudChip>
-                    }
-                </div>
-                <MudText Typo="Typo.caption">
-                    Please adjust your start or end time to avoid these occupied hours.
-                </MudText>
-            </MudAlert>
-        }
-        else if (!string.IsNullOrWhiteSpace(_errorMessage))
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
         {
             <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
                 @_errorMessage
             </MudAlert>
         }
 
-
-        <MudDatePicker Label="Reservation Date"
-                       @bind-Date="_selectedDate"
-                       MinDate="DateTime.Today"
-                       Variant="Variant.Outlined"
-                       Class="mb-4" />
-
-        <MudGrid Class="mb-4">
-            <MudItem xs="6">
-                <MudTimePicker Label="Start Time"
-                               @bind-Time="_startTime"
-                               Variant="Variant.Outlined"
-                               AmPm="true" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudTimePicker Label="End Time"
-                               @bind-Time="_endTime"
-                               Variant="Variant.Outlined"
-                               AmPm="true" />
-            </MudItem>
-        </MudGrid>
-
-        <!-- Calculated Duration & Cost Preview -->
-        <MudPaper Elevation="1" Class="pa-4 rounded-lg mud-theme-primary" Style="opacity: 0.95;">
-            <div class="d-flex justify-space-between align-center">
-                <div>
-                    <MudText Typo="Typo.caption" Color="Color.Surface">Estimated Duration</MudText>
-                    <MudText Typo="Typo.h6" Color="Color.Surface" Class="font-weight-bold">
-                        @GetCalculatedHours().ToString("0.##") Hours
-                    </MudText>
-                </div>
-                <div class="text-right">
-                    <MudText Typo="Typo.caption" Color="Color.Surface">Total Cost</MudText>
-                    <MudText Typo="Typo.h5" Color="Color.Surface" Class="font-weight-bold">
-                        $@GetCalculatedCost().ToString("0.00")
-                    </MudText>
-                </div>
+        @if (_currentStep == 1)
+        {
+            <!-- STEP 1: Space & Time Selection -->
+            <div class="mb-3 d-flex flex-wrap gap-2">
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Outlined">@Workspace.WorkspaceTypeName</MudChip>
+                <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Outlined">Capacity: @Workspace.Capacity people</MudChip>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">@Workspace.PricePerHour EGP / hr</MudChip>
             </div>
-        </MudPaper>
+
+            @if (_isCoveredBySubscription)
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Class="mb-4" Dense="true" Icon="@Icons.Material.Filled.WorkspacePremium">
+                    Active Membership: <strong>@_subscriptionPlanName</strong> covers 100% of your room rental rate (0.00 EGP).
+                </MudAlert>
+            }
+
+            @if (_conflictDetails != null && _conflictDetails.ConflictingSlots.Any())
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _conflictDetails = null)">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-1">
+                        Scheduling Conflict
+                    </MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        This workspace is already reserved during the following slot(s):
+                    </MudText>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        @foreach (var slot in _conflictDetails.ConflictingSlots)
+                        {
+                            <MudChip T="string" Color="Color.Surface" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.AccessTimeFilled">
+                                @slot.StartTime.ToLocalFromUtc().ToString("h:mm tt") – @slot.EndTime.ToLocalFromUtc().ToString("h:mm tt")
+                            </MudChip>
+                        }
+                    </div>
+                    <MudText Typo="Typo.caption">
+                        Please adjust your start or end time to avoid these occupied hours.
+                    </MudText>
+                </MudAlert>
+            }
+
+            <MudDatePicker Label="Reservation Date"
+                           @bind-Date="_selectedDate"
+                           MinDate="DateTime.Today"
+                           Variant="Variant.Outlined"
+                           Class="mb-4" />
+
+            <MudGrid Class="mb-4">
+                <MudItem xs="6">
+                    <MudTimePicker Label="Start Time"
+                                   @bind-Time="_startTime"
+                                   Variant="Variant.Outlined"
+                                   AmPm="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTimePicker Label="End Time"
+                                   @bind-Time="_endTime"
+                                   Variant="Variant.Outlined"
+                                   AmPm="true" />
+                </MudItem>
+            </MudGrid>
+
+            <!-- Optional Add-Ons Selection -->
+            @if (_isLoadingAddOns)
+            {
+                <div class="d-flex align-center gap-2 mb-4">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Loading available amenities & extras...</MudText>
+                </div>
+            }
+            else if (_availableAddOns.Any())
+            {
+                <div class="mb-4">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">
+                        Optional Amenities & Services
+                    </MudText>
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var addon in _availableAddOns)
+                        {
+                            <div class="d-flex justify-space-between align-center pa-2 rounded" style="background-color: var(--mud-palette-background-grey);">
+                                <div>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold">@addon.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">+@addon.Price.ToString("0.00") EGP each</MudText>
+                                </div>
+                                <div class="d-flex align-center gap-1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove"
+                                                   Size="Size.Small"
+                                                   Disabled="@(GetAddonQty(addon.Id) <= 0)"
+                                                   OnClick="@(() => DecrementAddon(addon.Id))" />
+                                    <MudText Typo="Typo.body2" Class="px-2 font-weight-bold">@GetAddonQty(addon.Id)</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => IncrementAddon(addon.Id))" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Calculated Cost Breakdown Preview -->
+            <MudPaper Elevation="1" Class="pa-4 rounded-lg mud-theme-primary" Style="opacity: 0.95;">
+                <div class="d-flex justify-space-between align-center mb-1">
+                    <MudText Typo="Typo.body2" Color="Color.Surface">
+                        Room Rate (@GetCalculatedHours().ToString("0.##") hrs)
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Surface">
+                        @if (_isCoveredBySubscription)
+                        {
+                            <span style="text-decoration: line-through; opacity: 0.7;" class="mr-1">
+                                @((((decimal)GetCalculatedHours()) * Workspace.PricePerHour).ToString("0.00")) EGP
+                            </span>
+                            <span class="font-weight-bold">0.00 EGP (Member Pass)</span>
+                        }
+                        else
+                        {
+                            <span>@((((decimal)GetCalculatedHours()) * Workspace.PricePerHour).ToString("0.00")) EGP</span>
+                        }
+                    </MudText>
+                </div>
+
+                @if (GetCalculatedAddOnsCost() > 0)
+                {
+                    <div class="d-flex justify-space-between align-center mb-1">
+                        <MudText Typo="Typo.body2" Color="Color.Surface">Add-Ons</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Surface">@GetCalculatedAddOnsCost().ToString("0.00") EGP</MudText>
+                    </div>
+                }
+
+                <MudDivider Class="my-2" Style="background-color: rgba(255,255,255,0.2);" />
+
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.subtitle1" Color="Color.Surface" Class="font-weight-bold">Total Due</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Surface" Class="font-weight-bold">
+                        @GetCalculatedGrandTotal().ToString("0.00") EGP
+                    </MudText>
+                </div>
+            </MudPaper>
+        }
+        else
+        {
+            <!-- STEP 2: Seamless Checkout / Payment -->
+            <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+                <div class="d-flex justify-space-between align-center mb-1">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Color="Color.Primary">@Workspace.Name</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">
+                        @((_createdBooking?.TotalCost ?? GetCalculatedGrandTotal()).ToString("0.00")) EGP
+                    </MudText>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                    @_selectedDate?.ToString("ddd, MMM dd, yyyy") (@_startTime?.ToString(@"hh\:mm") – @_endTime?.ToString(@"hh\:mm"))
+                </MudText>
+
+                <div class="d-flex justify-space-between align-center pt-2" style="border-top: 1px dashed var(--mud-palette-lines-default);">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @if (_isCoveredBySubscription && GetCalculatedAddOnsCost() > 0)
+                        {
+                            <span>Room rate covered by membership (0.00 EGP) • Charge for selected Add-Ons only</span>
+                        }
+                        else
+                        {
+                            <span>Full reservation settlement</span>
+                        }
+                    </MudText>
+                </div>
+            </MudPaper>
+
+            <!-- Payment Method Selection -->
+            <div class="mb-3">
+                <MudText Typo="Typo.subtitle2" Class="mb-2 font-weight-bold">Payment Method</MudText>
+                <MudRadioGroup @bind-Value="_paymentMethod">
+                    <MudRadio Value="PaymentMethod.CreditCard" Color="Color.Primary">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.CreditCard" Color="Color.Primary" />
+                            <span>Credit Card</span>
+                        </div>
+                    </MudRadio>
+                    <MudRadio Value="PaymentMethod.DebitCard" Color="Color.Primary">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Info" />
+                            <span>Debit Card</span>
+                        </div>
+                    </MudRadio>
+                    @if (_isCorporateUser)
+                    {
+                        <MudRadio Value="PaymentMethod.CompanyBalance" Color="Color.Primary">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Filled.CorporateFare" Color="Color.Secondary" />
+                                <span>Corporate Account Balance</span>
+                            </div>
+                        </MudRadio>
+                    }
+                </MudRadioGroup>
+            </div>
+
+            @if (_paymentMethod == PaymentMethod.CompanyBalance)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3" Dense="true" Icon="@Icons.Material.Filled.AccountBalance">
+                    Settlement will be charged to your corporate credit balance.
+                </MudAlert>
+            }
+
+            <!-- Card Input Fields -->
+            @if (_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard)
+            {
+                <MudPaper Elevation="0" Class="pa-4 rounded-lg" Style="border: 1px solid var(--mud-palette-lines-default);">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3">Card Information</MudText>
+
+                    <MudTextField @bind-Value="_cardholderName"
+                                  Label="Cardholder Name"
+                                  Placeholder="e.g. Ebrahem Mohamed"
+                                  Variant="Variant.Outlined"
+                                  Class="mb-3" />
+
+                    <MudTextField @bind-Value="_cardNumber"
+                                  Label="Card Number"
+                                  Placeholder="4242 4242 4242 4242"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.CreditCard"
+                                  Class="mb-3" />
+
+                    <MudGrid>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="_expiryDate"
+                                          Label="Expiration (MM/YY)"
+                                          Placeholder="12/28"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="_cvv"
+                                          Label="CVV / CVC"
+                                          Placeholder="123"
+                                          Variant="Variant.Outlined"
+                                          InputType="InputType.Password" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <!-- Test Gateway Simulator Scenarios -->
+                    <div class="mt-4 pt-3" style="border-top: 1px dashed var(--mud-palette-lines-default);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2 font-weight-bold">
+                            🧪 Test Gateway Scenarios (Click to auto-fill):
+                        </MudText>
+                        <div class="d-flex flex-wrap gap-2">
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("SUCCESS"))">
+                                ✓ Valid Card (Approved)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("INSUFFICIENT"))">
+                                ✗ Insufficient Funds (...0002)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("EXPIRED"))">
+                                ✗ Expired Card (...0003)
+                            </MudChip>
+                            <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("FRAUD"))">
+                                ✗ Fraud Suspected (...0005)
+                            </MudChip>
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary"
-                   Variant="Variant.Filled"
-                   OnClick="SubmitBooking"
-                   Disabled="@_isSubmitting">
-            @if (_isSubmitting)
-            {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                <MudText>Confirming...</MudText>
-            }
-            else
-            {
-                <MudText>Confirm Reservation</MudText>
-            }
-        </MudButton>
+        @if (_currentStep == 1)
+        {
+            <MudButton OnClick="CancelDialog" Variant="Variant.Text">Cancel</MudButton>
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       OnClick="SubmitBooking"
+                       Disabled="@_isSubmitting">
+                @if (_isSubmitting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Processing...</span>
+                }
+                else if (GetCalculatedGrandTotal() == 0m)
+                {
+                    <span>Confirm Reservation (Free)</span>
+                }
+                else
+                {
+                    <span>Continue to Checkout (@GetCalculatedGrandTotal().ToString("0.00") EGP)</span>
+                }
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Default"
+                       Variant="Variant.Text"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Disabled="@_isProcessingPayment"
+                       OnClick="BackToStep1">
+                Back
+            </MudButton>
+            <MudButton Color="Color.Error"
+                       Variant="Variant.Text"
+                       Disabled="@_isProcessingPayment"
+                       OnClick="CancelAndReleaseHold">
+                Cancel
+            </MudButton>
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.Lock"
+                       Disabled="@_isProcessingPayment"
+                       OnClick="ProcessPayment">
+                @if (_isProcessingPayment)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Processing Payment...</span>
+                }
+                else
+                {
+                    <span>Pay @((_createdBooking?.TotalCost ?? GetCalculatedGrandTotal()).ToString("0.00")) EGP</span>
+                }
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
@@ -108,18 +361,105 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
     [Parameter]
     public WorkspaceResponseDto Workspace { get; set; } = default!;
 
     [Parameter]
     public string UserId { get; set; } = string.Empty;
 
+    private int _currentStep = 1;
+    private BookingResponseDto? _createdBooking;
+    private CurrentUserContext? _caller;
+    private bool _isCorporateUser = false;
+    private bool _isCoveredBySubscription = false;
+    private string? _subscriptionPlanName;
+
+    private List<ServiceAddOnResponseDto> _availableAddOns = new();
+    private Dictionary<int, int> _selectedAddOnQuantities = new();
+
     private DateTime? _selectedDate = DateTime.Today;
     private TimeSpan? _startTime = TimeSpan.FromHours(9);
     private TimeSpan? _endTime = TimeSpan.FromHours(11);
     private bool _isSubmitting = false;
+    private bool _isProcessingPayment = false;
     private string? _errorMessage;
     private BookingConflictResponseDto? _conflictDetails;
+
+    private PaymentMethod _paymentMethod = PaymentMethod.CreditCard;
+    private string _cardholderName = "Ebrahem Mohamed";
+    private string _cardNumber = "4242 4242 4242 4242";
+    private string _expiryDate = "12/28";
+    private string _cvv = "123";
+    private bool _isLoadingAddOns = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            _caller = authState.User.GetUserContext();
+            _isCorporateUser = _caller.CompanyId.HasValue || _caller.IsCompanyAdmin;
+        }
+
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var scopedAddOnService = scope.ServiceProvider.GetRequiredService<IAddOnService>();
+            var scopedSubService = scope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+
+            var addOns = await scopedAddOnService.GetAllAsync(onlyAvailable: true);
+            _availableAddOns = addOns.ToList();
+
+            if (!string.IsNullOrEmpty(UserId))
+            {
+                var subResult = await scopedSubService.GetActiveSubscriptionForUserAsync(UserId);
+                if (subResult.Succeeded && subResult.Data != null)
+                {
+                    var plan = subResult.Data;
+                    bool coversWorkspace = plan.IsAllAccess || plan.WorkspaceTypeId == Workspace.WorkspaceTypeId;
+                    bool withinQuota = plan.MaxBookingsPerMonth == 0 || plan.BookingsUsedThisMonth < plan.MaxBookingsPerMonth;
+
+                    if (coversWorkspace && withinQuota)
+                    {
+                        _isCoveredBySubscription = true;
+                        _subscriptionPlanName = plan.PlanName;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CreateBookingDialog] Error loading initial dependencies: {ex.Message}");
+            _availableAddOns = new List<ServiceAddOnResponseDto>();
+        }
+        finally
+        {
+            _isLoadingAddOns = false;
+        }
+    }
+
+    private int GetAddonQty(int id) => _selectedAddOnQuantities.TryGetValue(id, out var q) ? q : 0;
+
+    private void IncrementAddon(int id)
+    {
+        _selectedAddOnQuantities[id] = GetAddonQty(id) + 1;
+    }
+
+    private void DecrementAddon(int id)
+    {
+        var current = GetAddonQty(id);
+        if (current > 1)
+        {
+            _selectedAddOnQuantities[id] = current - 1;
+        }
+        else
+        {
+            _selectedAddOnQuantities.Remove(id);
+        }
+    }
 
     private double GetCalculatedHours()
     {
@@ -128,10 +468,57 @@
         return diff > 0 ? diff : 0;
     }
 
-    private decimal GetCalculatedCost()
+    private decimal GetCalculatedRoomCost()
     {
+        if (_isCoveredBySubscription) return 0m;
         var hours = (decimal)GetCalculatedHours();
         return hours * Workspace.PricePerHour;
+    }
+
+    private decimal GetCalculatedAddOnsCost()
+    {
+        return _selectedAddOnQuantities.Sum(kvp =>
+        {
+            var item = _availableAddOns.FirstOrDefault(a => a.Id == kvp.Key);
+            return item != null ? item.Price * kvp.Value : 0m;
+        });
+    }
+
+    private decimal GetCalculatedGrandTotal()
+    {
+        return GetCalculatedRoomCost() + GetCalculatedAddOnsCost();
+    }
+
+    private void SetScenario(string scenario)
+    {
+        _errorMessage = null;
+        switch (scenario)
+        {
+            case "SUCCESS":
+                _cardNumber = "4242 4242 4242 4242";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Ebrahem Mohamed";
+                break;
+            case "INSUFFICIENT":
+                _cardNumber = "4000 0000 0000 0002";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Test Low Balance";
+                break;
+            case "EXPIRED":
+                _cardNumber = "4000 0000 0000 0003";
+                _expiryDate = "01/22";
+                _cvv = "123";
+                _cardholderName = "Test Expired Card";
+                break;
+            case "FRAUD":
+                _cardNumber = "4000 0000 0000 0005";
+                _expiryDate = "12/28";
+                _cvv = "999";
+                _cardholderName = "Test Suspect Card";
+                break;
+        }
     }
 
     private async Task SubmitBooking()
@@ -171,11 +558,34 @@
         {
             var startUtc = localStart.ToUtcFromLocal();
             var endUtc = localEnd.ToUtcFromLocal();
-            var dto = new CreateBookingDto(Workspace.Id, startUtc, endUtc);
+
+            var selectedAddonsList = _selectedAddOnQuantities
+                .Where(kvp => kvp.Value > 0)
+                .Select(kvp => new BookingAddOnRequestDto(kvp.Key, kvp.Value))
+                .ToList();
+
+            var dto = new CreateBookingDto(
+                Workspace.Id,
+                startUtc,
+                endUtc,
+                selectedAddonsList.Any() ? selectedAddonsList : null
+            );
+
             var booking = await BookingService.CreateBookingAsync(UserId, dto);
 
-            Snackbar.Add($"Reservation confirmed for {Workspace.Name}!", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(booking));
+            if (booking.TotalCost == 0m || (booking.Status == BookingStatus.Confirmed && GetCalculatedGrandTotal() == 0m))
+            {
+                // Immediate confirmation (0 EGP total - covered 100% by subscription with no add-ons)
+                Snackbar.Add($"Reservation confirmed for {Workspace.Name}!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(booking));
+            }
+            else
+            {
+                // Retail or subscription with remaining add-ons balance: proceed to checkout step
+                _createdBooking = booking;
+                _currentStep = 2;
+                StateHasChanged();
+            }
         }
         catch (BookingConflictException ex)
         {
@@ -185,12 +595,124 @@
         {
             _errorMessage = ex.Message;
         }
-
         finally
         {
             _isSubmitting = false;
         }
     }
 
-    private void Cancel() => MudDialog.Cancel();
+    private async Task BackToStep1()
+    {
+        if (_createdBooking != null)
+        {
+            await BookingService.ReleaseHoldAsync(_createdBooking.Id, UserId);
+            _createdBooking = null;
+        }
+
+        _errorMessage = null;
+        _currentStep = 1;
+    }
+
+    private async Task CancelAndReleaseHold()
+    {
+        if (_createdBooking != null)
+        {
+            await BookingService.ReleaseHoldAsync(_createdBooking.Id, UserId);
+            Snackbar.Add("Reservation cancelled. The workspace hold was released.", Severity.Info);
+        }
+        MudDialog.Cancel();
+    }
+
+    private void CancelDialog()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task ProcessPayment()
+    {
+        if (_caller == null && AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            _caller = authState.User.GetUserContext();
+        }
+
+        var invoiceId = _createdBooking?.InvoiceId;
+        if (!invoiceId.HasValue && _createdBooking != null)
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<SpaceManager.Data.AppDbContext>();
+            var inv = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Invoices, i => i.WorkspaceBookingId == _createdBooking.Id);
+            invoiceId = inv?.Id;
+        }
+
+        if (_createdBooking == null || !invoiceId.HasValue || _caller == null)
+        {
+            _errorMessage = "Unable to locate booking invoice. Please try again.";
+            return;
+        }
+
+        if ((_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard) &&
+            string.IsNullOrWhiteSpace(_cardNumber))
+        {
+            _errorMessage = "Please provide your card number before proceeding with payment.";
+            return;
+        }
+
+        _isProcessingPayment = true;
+        _errorMessage = null;
+
+        try
+        {
+            var token = (_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard)
+                ? _cardNumber.Replace(" ", "")
+                : $"{_paymentMethod.ToString().ToUpperInvariant()}-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
+
+            var paymentDto = new ProcessPaymentDto(
+                InvoiceId: invoiceId.Value,
+                Amount: _createdBooking.TotalCost,
+                PaymentMethod: _paymentMethod,
+                TransactionReference: token
+            );
+
+            var result = await PaymentService.ProcessAsync(paymentDto, _caller);
+
+            if (result.Succeeded)
+            {
+                var confirmedBooking = _createdBooking;
+                _createdBooking = null; // Clear so DisposeAsync does not release hold
+                Snackbar.Add($"Payment received! Your reservation for {Workspace.Name} is confirmed.", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(confirmedBooking));
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Payment was declined by payment gateway.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isProcessingPayment = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_createdBooking != null && _currentStep == 2)
+        {
+            try
+            {
+                using var scope = ScopeFactory.CreateScope();
+                var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
+                await bookingService.ReleaseHoldAsync(_createdBooking.Id, UserId);
+            }
+            catch
+            {
+                // Suppress errors during teardown
+            }
+        }
+    }
 }

@@ -1,10 +1,11 @@
 using SpaceManager.DTOs.Payments;
 using SpaceManager.Enums;
+using System.Collections.Generic;
 
 namespace SpaceManager.DTOs.Invoices;
 
 /// <summary>
-/// Response projection representing an invoice, with calculated balances and optional payment transaction history.
+/// Response projection representing an invoice, with calculated balances and complete payment transaction history.
 /// </summary>
 public record InvoiceResponseDto(
     int Id,
@@ -20,5 +21,5 @@ public record InvoiceResponseDto(
     int? WorkspaceBookingId,
     decimal AmountPaid,
     decimal RemainingBalance,
-    List<PaymentResponseDto>? Payments = null
+    List<PaymentResponseDto> Payments
 );

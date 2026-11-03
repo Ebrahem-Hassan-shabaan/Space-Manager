@@ -76,6 +76,26 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Payment> Payments { get; set; }
 
     /// <summary>
+    /// Gets or sets the database set of customer workspace reviews.
+    /// </summary>
+    public DbSet<WorkspaceReview> WorkspaceReviews { get; set; }
+
+    /// <summary>
+    /// Gets or sets the database set of user system notifications.
+    /// </summary>
+    public DbSet<Notification> Notifications { get; set; }
+
+    /// <summary>
+    /// Gets or sets the database set of membership subscription plans.
+    /// </summary>
+    public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+
+    /// <summary>
+    /// Gets or sets the database set of active and historical user subscriptions.
+    /// </summary>
+    public DbSet<UserSubscription> UserSubscriptions { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AppDbContext"/> class.
     /// </summary>
     /// <param name="options">The options to configure the database context.</param>

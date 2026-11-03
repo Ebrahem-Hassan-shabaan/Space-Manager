@@ -15,6 +15,7 @@ namespace SpaceManager.DTOs.Bookings;
 /// <param name="TotalCost">The calculated total cost of the reservation.</param>
 /// <param name="Status">The current status of the reservation.</param>
 /// <param name="BookingAddOns">The optional list of service add-ons included in the booking.</param>
+/// <param name="InvoiceId">The optional unique identifier of the billing invoice generated for this booking.</param>
 public record BookingResponseDto(
     int Id,
     int WorkspaceId,
@@ -23,5 +24,6 @@ public record BookingResponseDto(
     DateTime EndTime,
     decimal TotalCost,
     BookingStatus Status,
-    List<BookingAddOnResponseDto>? BookingAddOns = null
+    List<BookingAddOnResponseDto>? BookingAddOns = null,
+    int? InvoiceId = null
 );

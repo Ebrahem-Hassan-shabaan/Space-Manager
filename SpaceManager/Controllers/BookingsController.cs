@@ -186,6 +186,38 @@ public class BookingsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Immediately releases an unconfirmed pending reservation hold and cancels its draft invoice.
+    /// Used when a user navigates back or cancels during checkout.
+    /// </summary>
+    /// <param name="id">The unique identifier of the held booking.</param>
+    /// <returns>No content on success.</returns>
+    /// <response code="204">If the hold was successfully released.</response>
+    /// <response code="401">If the user is unauthenticated.</response>
+    /// <response code="404">If the hold is not found or does not belong to the caller.</response>
+    [HttpPost("{id:int}/release-hold")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReleaseHold(int id)
+    {
+        var userRole = User.FindFirstValue(ClaimTypes.Role);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+
+        var success = await _bookingService.ReleaseHoldAsync(id, userRole == "Admin" ? null : userId);
+        if (!success)
+        {
+            return NotFound(new { message = "Pending reservation hold not found or already released." });
+        }
+
+        return NoContent();
+    }
+
     /// <summary>
     /// Retrieves all service add-ons associated with a specific workspace booking.
     /// </summary>
@@ -200,12 +232,12 @@ public class BookingsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetBookingAddOns(int id)
     {
-       var addons = await _addOnService.GetByBookingIdAsync(id);
-         if (addons == null)
-          {
-                return NotFound(new { message = "No add-ons found for this booking." });
-          }
-    
-          return Ok(addons);
+        var addons = await _addOnService.GetByBookingIdAsync(id);
+        if (addons == null)
+        {
+            return NotFound(new { message = "No add-ons found for this booking." });
+        }
+
+        return Ok(addons);
     }
 }

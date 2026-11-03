@@ -78,7 +78,7 @@
                 </MudChip>
             </MudTd>
             <MudTd DataLabel="Capacity">@context.Capacity seats</MudTd>
-            <MudTd DataLabel="Price / Hour">$@context.PricePerHour.ToString("0.00")</MudTd>
+            <MudTd DataLabel="Price / Hour">@context.PricePerHour.ToString("0.00") EGP</MudTd>
             <MudTd DataLabel="Status">
                 @if (context.IsAvailable)
                 {

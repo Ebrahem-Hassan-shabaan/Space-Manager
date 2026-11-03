@@ -61,7 +61,7 @@
             </MudTd>
             <MudTd DataLabel="Start Time">@context.StartTime.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudTd>
             <MudTd DataLabel="End Time">@context.EndTime.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudTd>
-            <MudTd DataLabel="Total Price">$@context.TotalCost.ToString("0.00")</MudTd>
+            <MudTd DataLabel="Total Price">@context.TotalCost.ToString("0.00") EGP</MudTd>
             <MudTd DataLabel="Status">
                 @switch (context.Status)
                 {

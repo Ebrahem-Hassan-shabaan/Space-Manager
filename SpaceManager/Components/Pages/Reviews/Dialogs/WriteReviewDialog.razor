@@ -1,0 +1,111 @@
+@namespace SpaceManager.Components.Pages.Reviews.Dialogs
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Reviews
+@using SpaceManager.Services.Interfaces
+@inject IReviewService ReviewService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div class="d-flex flex-column gap-4 py-2">
+            <div>
+                <MudText Typo="Typo.h6" Class="font-weight-bold">@WorkspaceName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Reservation #@BookingId
+                </MudText>
+            </div>
+
+            <div>
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Your Rating *</MudText>
+                <MudRating @bind-SelectedValue="_rating" MaxValue="5" Color="Color.Warning" Size="Size.Large" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+                    @GetRatingDescription(_rating)
+                </MudText>
+            </div>
+
+            <MudTextField @bind-Value="_comment"
+                          Label="Feedback & Experience (Optional)"
+                          Variant="Variant.Outlined"
+                          Lines="4"
+                          MaxLength="1000"
+                          Counter="1000"
+                          Immediate="true"
+                          Placeholder="Tell us about the cleanliness, amenities, comfort, and noise levels..." />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="@(_isSubmitting || _rating < 1)"
+                   OnClick="SubmitReview">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Submitting...</span>
+            }
+            else
+            {
+                <span>Submit Review</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [Parameter]
+    public int BookingId { get; set; }
+
+    [Parameter]
+    public string WorkspaceName { get; set; } = string.Empty;
+
+    private int _rating = 5;
+    private string? _comment;
+    private bool _isSubmitting = false;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SubmitReview()
+    {
+        var authState = await AuthStateTask;
+        var caller = authState.User.GetUserContext();
+
+        _isSubmitting = true;
+
+        var dto = new CreateReviewDto
+        {
+            WorkspaceBookingId = BookingId,
+            Rating = _rating,
+            Comment = _comment
+        };
+
+        var result = await ReviewService.SubmitReviewAsync(dto, caller);
+        _isSubmitting = false;
+
+        if (result.Succeeded)
+        {
+            Snackbar.Add("Thank you! Your review has been submitted.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            Snackbar.Add(result.Error ?? "Failed to submit review.", Severity.Error);
+        }
+    }
+
+    private string GetRatingDescription(int rating) => rating switch
+    {
+        5 => "★★★★★ Excellent – Exceeded expectations",
+        4 => "★★★★☆ Very Good – Great experience",
+        3 => "★★★☆☆ Average – Satisfactory visit",
+        2 => "★★☆☆☆ Poor – Multiple issues encountered",
+        1 => "★☆☆☆☆ Terrible – Disappointing visit",
+        _ => "Select your rating"
+    };
+}

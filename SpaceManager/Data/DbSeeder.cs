@@ -83,5 +83,104 @@ public static class DbSeeder
         }
 
         await context.SaveChangesAsync();
+
+        // Seed initial membership subscription plans
+        if (!await context.SubscriptionPlans.AnyAsync())
+        {
+            var deskType = await context.WorkspaceTypes.FirstOrDefaultAsync(t => t.Name == "Desk");
+            var meetingRoomType = await context.WorkspaceTypes.FirstOrDefaultAsync(t => t.Name == "Meeting Room");
+
+            context.SubscriptionPlans.AddRange(
+                new SubscriptionPlan
+                {
+                    Name = "Hot Desk Unlimited",
+                    Description = "Ideal for freelancers and remote nomads. Guaranteed desk access, high-speed fiber internet, and complimentary coffee.",
+                    MonthlyPrice = 1200.00m,
+                    DurationMonths = 1,
+                    MaxBookingsPerMonth = 0, // unlimited
+                    WorkspaceTypeId = deskType?.Id,
+                    IsActive = true
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Meeting Room Pass",
+                    Description = "Designed for client presentations and collaborative sprints. Up to 15 conference or meeting room sessions per month.",
+                    MonthlyPrice = 2500.00m,
+                    DurationMonths = 1,
+                    MaxBookingsPerMonth = 15,
+                    WorkspaceTypeId = meetingRoomType?.Id,
+                    IsActive = true
+                },
+                new SubscriptionPlan
+                {
+                    Name = "All-Access Executive",
+                    Description = "The ultimate co-working pass. Unlimited access to any desk, meeting space, or private office across the entire platform.",
+                    MonthlyPrice = 4500.00m,
+                    DurationMonths = 1,
+                    MaxBookingsPerMonth = 0, // unlimited all-access
+                    WorkspaceTypeId = null,  // All-Access Pass
+                    IsActive = true
+                }
+            );
+
+            await context.SaveChangesAsync();
+        }
+
+        // Seed or update initial bookable service add-ons
+        var defaultAddOns = new[]
+        {
+            new ServiceAddOn
+            {
+                Name = "Presentation Projector & Screen",
+                Price = 280.00m,
+                IsAvailable = true
+            },
+            new ServiceAddOn
+            {
+                Name = "Dual Monitor 4K Setup",
+                Price = 180.00m,
+                IsAvailable = true
+            },
+            new ServiceAddOn
+            {
+                Name = "Unlimited Premium Coffee & Refreshments",
+                Price = 120.00m,
+                IsAvailable = true
+            },
+            new ServiceAddOn
+            {
+                Name = "Conference Speakerphone (Jabra)",
+                Price = 150.00m,
+                IsAvailable = true
+            },
+            new ServiceAddOn
+            {
+                Name = "Whiteboard & Brainstorming Kit",
+                Price = 80.00m,
+                IsAvailable = true
+            },
+            new ServiceAddOn
+            {
+                Name = "High-Speed Dedicated IP & LAN Port",
+                Price = 140.00m,
+                IsAvailable = true
+            }
+        };
+
+        foreach (var item in defaultAddOns)
+        {
+            var existing = await context.ServiceAddOns.FirstOrDefaultAsync(sa => sa.Name == item.Name);
+            if (existing == null)
+            {
+                context.ServiceAddOns.Add(item);
+            }
+            else
+            {
+                existing.Price = item.Price;
+                existing.IsAvailable = true;
+            }
+        }
+
+        await context.SaveChangesAsync();
     }
 }

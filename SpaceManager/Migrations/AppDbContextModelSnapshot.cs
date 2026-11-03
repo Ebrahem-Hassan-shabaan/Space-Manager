@@ -399,6 +399,57 @@ namespace SpaceManager.Migrations
                     b.ToTable("MaintenanceTickets");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("WorkspaceBookingId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("WorkspaceBookingId");
+
+                    b.HasIndex("UserId", "IsRead");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.Payment", b =>
                 {
                     b.Property<int>("Id")
@@ -457,6 +508,55 @@ namespace SpaceManager.Migrations
                     b.ToTable("ServiceAddOns");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.SubscriptionPlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DurationMonths")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("MaxBookingsPerMonth")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<decimal>("MonthlyPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("WorkspaceTypeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceTypeId");
+
+                    b.ToTable("SubscriptionPlans");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.TicketUpdate", b =>
                 {
                     b.Property<int>("Id")
@@ -492,6 +592,51 @@ namespace SpaceManager.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("TicketUpdates");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.UserSubscription", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsAutoRenew")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("SubscriptionPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionPlanId");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("UserSubscriptions");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.VisitorPass", b =>
@@ -594,6 +739,9 @@ namespace SpaceManager.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 
@@ -620,6 +768,46 @@ namespace SpaceManager.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("WorkspaceBookings");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.WorkspaceReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("WorkspaceBookingId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceBookingId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("WorkspaceReviews");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.WorkspaceType", b =>
@@ -766,6 +954,31 @@ namespace SpaceManager.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.Notification", b =>
+                {
+                    b.HasOne("SpaceManager.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SpaceManager.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.WorkspaceBooking", "WorkspaceBooking")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceBookingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+
+                    b.Navigation("WorkspaceBooking");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.Payment", b =>
                 {
                     b.HasOne("SpaceManager.Models.Invoice", "Invoice")
@@ -775,6 +988,16 @@ namespace SpaceManager.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.SubscriptionPlan", b =>
+                {
+                    b.HasOne("SpaceManager.Models.WorkspaceType", "WorkspaceType")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceTypeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("WorkspaceType");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.TicketUpdate", b =>
@@ -792,6 +1015,25 @@ namespace SpaceManager.Migrations
                         .IsRequired();
 
                     b.Navigation("MaintenanceTicket");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.UserSubscription", b =>
+                {
+                    b.HasOne("SpaceManager.Models.SubscriptionPlan", "SubscriptionPlan")
+                        .WithMany("UserSubscriptions")
+                        .HasForeignKey("SubscriptionPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SubscriptionPlan");
 
                     b.Navigation("User");
                 });
@@ -864,6 +1106,33 @@ namespace SpaceManager.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("SpaceManager.Models.WorkspaceReview", b =>
+                {
+                    b.HasOne("SpaceManager.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.WorkspaceBooking", "WorkspaceBooking")
+                        .WithOne()
+                        .HasForeignKey("SpaceManager.Models.WorkspaceReview", "WorkspaceBookingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SpaceManager.Models.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
+
+                    b.Navigation("WorkspaceBooking");
+                });
+
             modelBuilder.Entity("SpaceManager.Models.Amenity", b =>
                 {
                     b.Navigation("WorkspaceAmenities");
@@ -902,6 +1171,11 @@ namespace SpaceManager.Migrations
             modelBuilder.Entity("SpaceManager.Models.ServiceAddOn", b =>
                 {
                     b.Navigation("BookingAddOns");
+                });
+
+            modelBuilder.Entity("SpaceManager.Models.SubscriptionPlan", b =>
+                {
+                    b.Navigation("UserSubscriptions");
                 });
 
             modelBuilder.Entity("SpaceManager.Models.Workspace", b =>

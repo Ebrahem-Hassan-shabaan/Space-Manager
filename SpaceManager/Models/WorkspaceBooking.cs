@@ -1,3 +1,4 @@
+using Microsoft.Identity.Client;
 using SpaceManager.Enums;
 
 namespace SpaceManager.Models;
@@ -27,10 +28,14 @@ public class WorkspaceBooking
     /// </summary>
     public decimal TotalCost { get; set; }
 
+
+
+    public DateTime CreatedAt { get; init ; } = DateTime.UtcNow;
+
     /// <summary>
     /// Gets or sets the current lifecycle status of the reservation (e.g., Confirmed, Completed, Cancelled).
     /// </summary>
-    public BookingStatus Status { get; set; } = BookingStatus.Confirmed;
+    public BookingStatus Status { get; set; } = BookingStatus.PendingPayment;
 
     /// <summary>
     /// Gets or sets the foreign key of the user who placed the booking.

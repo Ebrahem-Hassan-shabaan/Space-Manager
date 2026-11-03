@@ -1,0 +1,282 @@
+@namespace SpaceManager.Components.Pages.Invoices.Dialogs
+@using System.Security.Claims
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Payments
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
+@inject IPaymentService PaymentService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Filled.Payment" Color="Color.Primary" />
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Settle Invoice #@InvoiceId</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(WorkspaceName))
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4" Dense="true">
+                Reservation for <strong>@WorkspaceName</strong>
+            </MudAlert>
+        }
+
+        <!-- 15-Minute Reservation Hold Alert -->
+        @if (_remainingSeconds > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4 py-2" Dense="true" Icon="@Icons.Material.Filled.Timer">
+                <div class="d-flex justify-space-between align-center">
+                    <span>Hold expires in:</span>
+                    <strong style="font-size: 1.1rem; letter-spacing: 1px;">
+                        @($"{_remainingSeconds / 60:D2}:{_remainingSeconds % 60:D2}")
+                    </strong>
+                </div>
+            </MudAlert>
+        }
+
+        <!-- Balance Summary Card -->
+        <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background-color: var(--mud-palette-background-grey);">
+            <div class="d-flex justify-space-between align-center mb-1">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Total Invoiced</MudText>
+                <MudText Typo="Typo.body2">@Amount.ToString("0.00") EGP</MudText>
+            </div>
+            <div class="d-flex justify-space-between align-center">
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Amount Due</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Primary" Class="font-weight-bold">@RemainingAmount.ToString("0.00") EGP</MudText>
+            </div>
+        </MudPaper>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <!-- Payment Method Selection -->
+        <MudSelect T="PaymentMethod" Label="Payment Method" @bind-Value="_paymentMethod" Variant="Variant.Outlined" Class="mb-4" AnchorOrigin="Origin.BottomCenter">
+            <MudSelectItem Value="PaymentMethod.CreditCard">Credit Card (Online Checkout)</MudSelectItem>
+            <MudSelectItem Value="PaymentMethod.DebitCard">Debit Card (Online Checkout)</MudSelectItem>
+            <MudSelectItem Value="PaymentMethod.BankTransfer">Bank Transfer</MudSelectItem>
+            @if (_caller?.IsAdmin == true)
+            {
+                <MudSelectItem Value="PaymentMethod.Cash">Cash (Admin Settlement)</MudSelectItem>
+            }
+            @if (_caller?.IsAdmin == true || _caller?.IsCompanyAdmin == true || _caller?.CompanyId != null)
+            {
+                <MudSelectItem Value="PaymentMethod.CompanyBalance">Corporate Balance</MudSelectItem>
+            }
+        </MudSelect>
+
+        <!-- Card Input Form -->
+        @if (_paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard)
+        {
+            <MudPaper Elevation="0" Class="pa-4 rounded-lg mb-2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-3">Card Information</MudText>
+
+                <MudTextField @bind-Value="_cardholderName"
+                              Label="Cardholder Name"
+                              Placeholder="e.g. Ebrahem Mohamed"
+                              Variant="Variant.Outlined"
+                              Class="mb-3" />
+
+                <MudTextField @bind-Value="_cardNumber"
+                              Label="Card Number"
+                              Placeholder="4242 4242 4242 4242"
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@Icons.Material.Filled.CreditCard"
+                              Class="mb-3" />
+
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudTextField @bind-Value="_expiryDate"
+                                      Label="Expiration (MM/YY)"
+                                      Placeholder="12/28"
+                                      Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudTextField @bind-Value="_cvv"
+                                      Label="CVV / CVC"
+                                      Placeholder="123"
+                                      Variant="Variant.Outlined"
+                                      InputType="InputType.Password" />
+                    </MudItem>
+                </MudGrid>
+
+                <!-- Test Gateway Simulator Scenarios -->
+                <div class="mt-4 pt-3" style="border-top: 1px dashed var(--mud-palette-lines-default);">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2 font-weight-bold">
+                        🧪 Test Gateway Scenarios (Click to auto-fill):
+                    </MudText>
+                    <div class="d-flex flex-wrap gap-2">
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("SUCCESS"))">
+                            ✓ Valid Card (Approved)
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("INSUFFICIENT"))">
+                            ✗ Insufficient Funds (...0002)
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("EXPIRED"))">
+                            ✗ Expired Card (...0003)
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetScenario("FRAUD"))">
+                            ✗ Fraud Suspected (...0005)
+                        </MudChip>
+                    </div>
+                </div>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Lock"
+                   Disabled="@_isSubmitting"
+                   OnClick="ProcessPayment">
+            @if (_isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Processing...</span>
+            }
+            else
+            {
+                <span>Pay @RemainingAmount.ToString("0.00") EGP</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [Parameter] public int InvoiceId { get; set; }
+    [Parameter] public decimal Amount { get; set; }
+    [Parameter] public decimal RemainingAmount { get; set; }
+    [Parameter] public string? WorkspaceName { get; set; }
+    [Parameter] public DateTime? HoldCreatedAt { get; set; }
+
+    private CurrentUserContext? _caller;
+    private PaymentMethod _paymentMethod = PaymentMethod.CreditCard;
+    private string _cardholderName = "Ebrahem Mohamed";
+    private string _cardNumber = "4242 4242 4242 4242";
+    private string _expiryDate = "12/28";
+    private string _cvv = "123";
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    private int _remainingSeconds = 0;
+    private System.Threading.Timer? _countdownTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _caller = authState.User.GetUserContext();
+
+        if (HoldCreatedAt.HasValue)
+        {
+            var elapsed = DateTime.UtcNow - HoldCreatedAt.Value;
+            var remaining = TimeSpan.FromMinutes(15) - elapsed;
+            _remainingSeconds = Math.Max(0, (int)remaining.TotalSeconds);
+
+            if (_remainingSeconds > 0)
+            {
+                _countdownTimer = new System.Threading.Timer(OnTimerTick, null, 1000, 1000);
+            }
+        }
+    }
+
+    private void SetScenario(string scenario)
+    {
+        _errorMessage = null;
+        switch (scenario)
+        {
+            case "SUCCESS":
+                _cardNumber = "4242 4242 4242 4242";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Ebrahem Mohamed";
+                break;
+            case "INSUFFICIENT":
+                _cardNumber = "4000 0000 0000 0002";
+                _expiryDate = "12/28";
+                _cvv = "123";
+                _cardholderName = "Test Low Balance";
+                break;
+            case "EXPIRED":
+                _cardNumber = "4000 0000 0000 0003";
+                _expiryDate = "01/22";
+                _cvv = "123";
+                _cardholderName = "Test Expired Card";
+                break;
+            case "FRAUD":
+                _cardNumber = "4000 0000 0000 0005";
+                _expiryDate = "12/28";
+                _cvv = "999";
+                _cardholderName = "Test Suspect Card";
+                break;
+        }
+    }
+
+    private void OnTimerTick(object? state)
+    {
+        if (_remainingSeconds > 0)
+        {
+            _remainingSeconds--;
+            InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            _countdownTimer?.Dispose();
+        }
+    }
+
+    private async Task ProcessPayment()
+    {
+        if (_caller == null) return;
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var token = _paymentMethod == PaymentMethod.CreditCard || _paymentMethod == PaymentMethod.DebitCard
+                ? _cardNumber.Replace(" ", "")
+                : $"{_paymentMethod.ToString().ToUpperInvariant()}-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
+
+            var dto = new ProcessPaymentDto(
+                InvoiceId: InvoiceId,
+                Amount: RemainingAmount,
+                PaymentMethod: _paymentMethod,
+                TransactionReference: token
+            );
+
+            var result = await PaymentService.ProcessAsync(dto, _caller);
+
+            if (result.Succeeded)
+            {
+                Snackbar.Add($"Payment of {RemainingAmount:0.00} EGP completed successfully!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                _errorMessage = result.Error ?? "Payment was declined by gateway.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

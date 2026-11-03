@@ -19,6 +19,7 @@ public interface IBookingService
 
     /// <summary>
     /// Retrieves bookings for the specified user with optional filtering.
+    /// Filters out unconfirmed ephemeral PendingPayment holds.
     /// </summary>
     /// <param name="userId">The unique identifier of the authenticated user.</param>
     /// <param name="upcoming">
@@ -48,6 +49,15 @@ public interface IBookingService
     Task<bool> CancelBookingAsync(int bookingId, string? userId = null);
 
     /// <summary>
+    /// Immediately releases an unconfirmed pending reservation hold and cancels its draft invoice.
+    /// Called when a user cancels checkout, navigates back, or abandons the payment step.
+    /// </summary>
+    /// <param name="bookingId">The unique identifier of the held booking.</param>
+    /// <param name="userId">Optional unique identifier of the user for ownership validation.</param>
+    /// <returns><c>true</c> if the hold was successfully cancelled and released; otherwise, <c>false</c>.</returns>
+    Task<bool> ReleaseHoldAsync(int bookingId, string? userId = null);
+
+    /// <summary>
     /// Retrieves all bookings across all users. (Admin use only)
     /// </summary>
     /// <param name="upcoming">
@@ -72,8 +82,14 @@ public interface IBookingService
     /// <summary>
     /// Transitions all past Confirmed bookings to Completed.
     /// Safe to call lazily on every GET or on a scheduled background job.
-    /// Remove the lazy calls from the GET methods once a background job is wired up.
     /// </summary>
     /// <returns>Number of bookings sealed in this call.</returns>
     Task<int> SealExpiredBookingsAsync();
+
+    /// <summary>
+    /// Releases and cancels all unpaid individual reservation holds older than 15 minutes.
+    /// Also voids their associated pending invoices. Corporate bookings are unaffected.
+    /// </summary>
+    /// <returns>Number of expired reservation holds released.</returns>
+    Task<int> ReleaseExpiredHoldsAsync();
 }

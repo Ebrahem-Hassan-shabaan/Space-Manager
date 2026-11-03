@@ -18,5 +18,6 @@ public enum BookingStatus
     /// <summary>
     /// The scheduled end time of the reservation has passed and the session concluded.
     /// </summary>
-    Completed = 3
+    Completed = 3,
+    PendingPayment = 4,
 }

@@ -27,6 +27,8 @@ public class WorkspaceBookingConfiguration : IEntityTypeConfiguration<WorkspaceB
             .IsRequired()
             .HasColumnType("decimal(18,2)");
 
+        builder.Property(wb => wb.CreatedAt)
+            .IsRequired();
         builder.HasOne(wb => wb.Workspace)
             .WithMany(w => w.WorkspaceBookings)
             .HasForeignKey(wb => wb.WorkspaceId)

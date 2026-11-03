@@ -1,6 +1,10 @@
 @page "/bookings/my-bookings"
 @attribute [Authorize]
+@using SpaceManager.Common
+@using SpaceManager.Components.Pages.Invoices.Dialogs
+@using SpaceManager.DTOs.Invoices
 @inject IBookingService BookingService
+@inject IInvoiceService InvoiceService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -36,6 +40,7 @@
     private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
     private string? _userId;
+    private CurrentUserContext? _caller;
     private IEnumerable<BookingResponseDto>? _bookings;
     private bool _isLoading = true;
     private int _currentTabIndex = 0;
@@ -44,6 +49,7 @@
     {
         var authState = await AuthStateTask;
         _userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        _caller = authState.User.GetUserContext();
         await LoadBookings();
     }
 
@@ -112,12 +118,36 @@
                                         @b.StartTime.ToLocalFromUtc().ToString("h:mm tt") - @b.EndTime.ToLocalFromUtc().ToString("h:mm tt")
                                     </MudText>
                                 </div>
-                                <div class="d-flex align-center gap-2 mb-4">
+                                <div class="d-flex align-center gap-2 mb-2">
                                     <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Small" Color="Color.Secondary" />
                                     <MudText Typo="Typo.body2">
-                                        Total Cost: <b>$@b.TotalCost.ToString("0.00")</b>
+                                        Total Cost: <b>@b.TotalCost.ToString("0.00") EGP</b>
                                     </MudText>
                                 </div>
+
+                                @if (b.BookingAddOns != null && b.BookingAddOns.Any())
+                                {
+                                    <div class="mb-3">
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1 font-weight-bold">
+                                            Included Amenities:
+                                        </MudText>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var addon in b.BookingAddOns)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Filled.Check">
+                                                    @addon.ServiceName @(addon.Quantity > 1 ? $"x{addon.Quantity}" : "") (@addon.TotalPrice.ToString("0.00") EGP)
+                                                </MudChip>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (b.Status == BookingStatus.PendingPayment)
+                                {
+                                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2" Icon="@Icons.Material.Filled.HourglassTop">
+                                        Reservation held for 15 minutes awaiting payment.
+                                    </MudAlert>
+                                }
 
                                 @if (b.Status == BookingStatus.Confirmed && b.StartTime <= DateTime.UtcNow.AddHours(1) && b.StartTime > DateTime.UtcNow)
                                 {
@@ -127,7 +157,25 @@
                                 }
                             </MudCardContent>
                             <MudCardActions Class="pa-4 pt-0 d-flex justify-space-between flex-wrap gap-2">
-                                @if (b.Status == BookingStatus.Confirmed && b.EndTime > DateTime.UtcNow)
+                                @if (b.Status == BookingStatus.PendingPayment)
+                                {
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Payment"
+                                               OnClick="@(() => OpenPayBookingDialog(b))">
+                                        Pay Now
+                                    </MudButton>
+
+                                    <MudButton Variant="Variant.Text"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Cancel"
+                                               OnClick="@(() => ConfirmCancelBooking(b))">
+                                        Cancel
+                                    </MudButton>
+                                }
+                                else if (b.Status == BookingStatus.Confirmed && b.EndTime > DateTime.UtcNow)
                                 {
                                     <MudButton Variant="Variant.Outlined"
                                                Color="Color.Secondary"
@@ -148,6 +196,16 @@
                                         </MudButton>
                                     }
                                 }
+                                else if (b.Status == BookingStatus.Completed)
+                                {
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.RateReview"
+                                               OnClick="@(() => OpenWriteReviewDialog(b))">
+                                        Write Review
+                                    </MudButton>
+                                }
                             </MudCardActions>
                         </MudCard>
                     </MudItem>
@@ -158,7 +216,8 @@
 
     private bool CanCancel(BookingResponseDto booking)
     {
-        return booking.Status == BookingStatus.Confirmed && booking.StartTime > DateTime.UtcNow.AddHours(1);
+        return (booking.Status == BookingStatus.Confirmed && booking.StartTime > DateTime.UtcNow.AddHours(1))
+            || booking.Status == BookingStatus.PendingPayment;
     }
 
     private RenderFragment GetStatusChip(BookingStatus status) => __builder =>
@@ -167,6 +226,9 @@
         {
             case BookingStatus.Confirmed:
                 <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Confirmed</MudChip>
+                break;
+            case BookingStatus.PendingPayment:
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.HourglassTop">Pending Payment</MudChip>
                 break;
             case BookingStatus.Cancelled:
                 <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelled</MudChip>
@@ -179,6 +241,38 @@
                 break;
         }
     };
+
+    private async Task OpenPayBookingDialog(BookingResponseDto booking)
+    {
+        if (_caller == null) return;
+
+        var filter = new InvoiceFilterDto(Status: InvoiceStatus.Issued);
+        var invoices = await InvoiceService.GetAllAsync(_caller, filter);
+        var invoice = invoices.FirstOrDefault(i => i.WorkspaceBookingId == booking.Id);
+
+        if (invoice != null)
+        {
+            var parameters = new DialogParameters<PayInvoiceDialog>
+            {
+                { x => x.InvoiceId, invoice.Id },
+                { x => x.Amount, invoice.Amount },
+                { x => x.RemainingAmount, invoice.RemainingBalance },
+                { x => x.WorkspaceName, booking.WorkspaceName },
+                { x => x.HoldCreatedAt, invoice.IssuedDate }
+            };
+
+            var dialog = await DialogService.ShowAsync<PayInvoiceDialog>("Pay for Reservation", parameters);
+            var result = await dialog.Result;
+            if (result != null && !result.Canceled)
+            {
+                await LoadBookings();
+            }
+        }
+        else
+        {
+            Snackbar.Add("No pending invoice found for this reservation.", Severity.Warning);
+        }
+    }
 
     private async Task OpenVisitorPassDialog(BookingResponseDto booking)
     {
@@ -229,6 +323,24 @@
             {
                 Snackbar.Add($"Failed to cancel: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private async Task OpenWriteReviewDialog(BookingResponseDto booking)
+    {
+        var parameters = new DialogParameters<SpaceManager.Components.Pages.Reviews.Dialogs.WriteReviewDialog>
+        {
+            { x => x.BookingId, booking.Id },
+            { x => x.WorkspaceName, booking.WorkspaceName }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Reviews.Dialogs.WriteReviewDialog>("Write Review", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadBookings();
         }
     }
 }

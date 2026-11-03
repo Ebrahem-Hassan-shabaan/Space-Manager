@@ -1,0 +1,251 @@
+@namespace SpaceManager.Components.Pages.Invoices.Dialogs
+@using System.Security.Claims
+@using SpaceManager.Common
+@using SpaceManager.DTOs.Invoices
+@using SpaceManager.DTOs.Payments
+@using SpaceManager.Enums
+@using SpaceManager.Services.Interfaces
+@inject IInvoiceService InvoiceService
+@inject IPaymentService PaymentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between w-100">
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.Receipt" Color="Color.Primary" />
+                <MudText Typo="Typo.h6" Class="font-weight-bold">Invoice Details #@InvoiceId</MudText>
+            </div>
+            @if (_invoice != null)
+            {
+                <MudChip T="string" Color="@GetStatusColor(_invoice.Status)" Size="Size.Small" Variant="Variant.Filled">
+                    @_invoice.Status
+                </MudChip>
+            }
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <div class="d-flex justify-center pa-8">
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            </div>
+        }
+        else if (_invoice == null)
+        {
+            <MudAlert Severity="Severity.Error">Invoice not found or access denied.</MudAlert>
+        }
+        else
+        {
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Billed To</MudText>
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                        @(!string.IsNullOrEmpty(_invoice.CompanyName) ? _invoice.CompanyName : _invoice.UserName ?? "Direct Client")
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(_invoice.UserEmail))
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@_invoice.UserEmail</MudText>
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="d-flex justify-space-between">
+                        <div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Issued Date</MudText>
+                            <MudText Typo="Typo.body2">@_invoice.IssuedDate.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudText>
+                        </div>
+                        <div class="text-right">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Due Date</MudText>
+                            <MudText Typo="Typo.body2" Color="@(_invoice.DueDate < DateTime.UtcNow && _invoice.Status != InvoiceStatus.Paid ? Color.Error : Color.Default)">
+                                @_invoice.DueDate.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")
+                            </MudText>
+                        </div>
+                    </div>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Financial Summary Cards -->
+            <MudGrid Class="mb-6">
+                <MudItem xs="4">
+                    <MudPaper Elevation="0" Class="pa-3 rounded-lg text-center" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Total Amount</MudText>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@_invoice.Amount.ToString("0.00") EGP</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudPaper Elevation="0" Class="pa-3 rounded-lg text-center" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Success">Amount Paid</MudText>
+                        <MudText Typo="Typo.subtitle1" Color="Color.Success" Class="font-weight-bold">@_invoice.AmountPaid.ToString("0.00") EGP</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudPaper Elevation="0" Class="pa-3 rounded-lg text-center" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.caption" Color="Color.Error">Remaining</MudText>
+                        <MudText Typo="Typo.subtitle1" Color="@(_invoice.RemainingBalance > 0 ? Color.Error : Color.Default)" Class="font-weight-bold">
+                            @_invoice.RemainingBalance.ToString("0.00") EGP
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Payment Transaction Ledger -->
+            <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Transaction History</MudText>
+            @if (_invoice.Payments == null || !_invoice.Payments.Any())
+            {
+                <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+                    No payments have been recorded for this invoice yet.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@_invoice.Payments" Dense="true" Elevation="1" Class="mb-4 rounded-lg">
+                    <HeaderContent>
+                        <MudTh>Date</MudTh>
+                        <MudTh>Method</MudTh>
+                        <MudTh>Reference</MudTh>
+                        <MudTh Style="text-align: right;">Amount</MudTh>
+                        @if (_caller?.IsAdmin == true)
+                        {
+                            <MudTh Style="text-align: center;">Action</MudTh>
+                        }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Date">@context.PaymentDate.ToLocalFromUtc().ToString("MMM dd, yyyy h:mm tt")</MudTd>
+                        <MudTd DataLabel="Method">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.PaymentMethod</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Reference">
+                            <code>@context.TransactionReference</code>
+                        </MudTd>
+                        <MudTd DataLabel="Amount" Style="text-align: right;">
+                            <span class="@(context.Amount < 0 ? "text-danger font-weight-bold" : "font-weight-bold")">
+                                @(context.Amount < 0 ? $"- {Math.Abs(context.Amount):0.00} EGP (Refund)" : $"{context.Amount:0.00} EGP")
+                            </span>
+                        </MudTd>
+                        @if (_caller?.IsAdmin == true)
+                        {
+                            <MudTd Style="text-align: center;">
+                                @if (context.Amount > 0)
+                                {
+                                    <MudButton Size="Size.Small"
+                                               Color="Color.Error"
+                                               Variant="Variant.Text"
+                                               OnClick="@(() => PromptRefund(context))">
+                                        Refund
+                                    </MudButton>
+                                }
+                            </MudTd>
+                        }
+                    </RowTemplate>
+                </MudTable>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+        @if (_invoice != null && _invoice.RemainingBalance > 0 && _invoice.Status != InvoiceStatus.Cancelled)
+        {
+            <MudButton Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.CreditCard"
+                       OnClick="OpenPayDialog">
+                Pay Now (@_invoice.RemainingBalance.ToString("0.00") EGP)
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    [Parameter] public int InvoiceId { get; set; }
+
+    private CurrentUserContext? _caller;
+    private InvoiceResponseDto? _invoice;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        _caller = authState.User.GetUserContext();
+        await LoadInvoice();
+    }
+
+    private async Task LoadInvoice()
+    {
+        if (_caller == null) return;
+        _isLoading = true;
+
+        var result = await InvoiceService.GetByIdAsync(InvoiceId, _caller);
+        if (result.Succeeded)
+        {
+            _invoice = result.Data;
+        }
+        _isLoading = false;
+    }
+
+    private async Task OpenPayDialog()
+    {
+        if (_invoice == null) return;
+
+        var parameters = new DialogParameters<PayInvoiceDialog>
+        {
+            { x => x.InvoiceId, _invoice.Id },
+            { x => x.Amount, _invoice.Amount },
+            { x => x.RemainingAmount, _invoice.RemainingBalance }
+        };
+
+        var dialog = await DialogService.ShowAsync<PayInvoiceDialog>("Pay Invoice", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadInvoice();
+        }
+    }
+
+    private async Task PromptRefund(PaymentResponseDto payment)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.ContentText, $"Are you sure you want to refund payment #{payment.Id} ({payment.Amount:0.00} EGP)? This will record an accounting refund and cancel any linked reservation." },
+            { x => x.ButtonText, "Confirm Refund" },
+            { x => x.Color, Color.Error }
+        };
+
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Issue Refund", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var refundResult = await PaymentService.RefundAsync(payment.Id);
+            if (refundResult.Succeeded)
+            {
+                Snackbar.Add("Refund processed successfully.", Severity.Success);
+                await LoadInvoice();
+            }
+            else
+            {
+                Snackbar.Add(refundResult.Error ?? "Refund failed.", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetStatusColor(InvoiceStatus status) => status switch
+    {
+        InvoiceStatus.Paid => Color.Success,
+        InvoiceStatus.Issued => Color.Warning,
+        InvoiceStatus.PartiallyPaid => Color.Info,
+        InvoiceStatus.Overdue => Color.Error,
+        InvoiceStatus.Cancelled => Color.Default,
+        InvoiceStatus.Refunded => Color.Dark,
+        _ => Color.Default
+    };
+
+    private void Close() => MudDialog.Close();
+}

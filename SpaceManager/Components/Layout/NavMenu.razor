@@ -8,13 +8,16 @@
     <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">General</MudText>
     <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">SpaceManager Home</MudNavLink>
     <MudNavLink Href="/workspaces" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.MeetingRoom">Explore Workspaces</MudNavLink>
+    <MudNavLink Href="/subscriptions/plans" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Loyalty">Membership Plans</MudNavLink>
 
     <!-- User / Member Section -->
     <AuthorizeView Roles="User">
         <Authorized>
             <MudDivider Class="my-3" />
             <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Member Portal</MudText>
+            <MudNavLink Href="/subscriptions/my" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CardMembership">My Membership</MudNavLink>
             <MudNavLink Href="/bookings/my-bookings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Bookmark">My Bookings</MudNavLink>
+            <MudNavLink Href="/invoices" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReceiptLong">My Invoices</MudNavLink>
             <MudNavLink Href="/visitors/my-passes" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Badge">My Visitor Passes</MudNavLink>
             <MudNavLink Href="/tickets/my-tickets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReportProblem">My Support Tickets</MudNavLink>
         </Authorized>
@@ -27,8 +30,10 @@
             <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Admin Console</MudText>
             <MudNavLink Href="/admin/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">System Dashboard</MudNavLink>
             <MudNavLink Href="/admin/workspaces" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Desk">Manage Workspaces</MudNavLink>
+            <MudNavLink Href="/subscriptions/plans" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Loyalty">Membership Plans</MudNavLink>
             <MudNavLink Href="/admin/companies" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Business">Corporate Companies</MudNavLink>
             <MudNavLink Href="/admin/bookings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.CalendarMonth">All Bookings</MudNavLink>
+            <MudNavLink Href="/invoices" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Payments">Billing & Invoices</MudNavLink>
             <MudNavLink Href="/admin/check-in" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AssignmentTurnedIn">Visitor Check-In</MudNavLink>
             <MudNavLink Href="/admin/tickets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Handyman">Maintenance Center</MudNavLink>
         </Authorized>
@@ -40,6 +45,7 @@
             <MudDivider Class="my-3" />
             <MudText Typo="Typo.overline" Class="px-4 text-muted font-weight-bold">Company Portal</MudText>
             <MudNavLink Href="/company/members" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Company Members</MudNavLink>
+            <MudNavLink Href="/invoices" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReceiptLong">Company Invoices</MudNavLink>
         </Authorized>
     </AuthorizeView>
 

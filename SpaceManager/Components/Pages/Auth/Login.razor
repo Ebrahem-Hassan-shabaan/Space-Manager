@@ -113,10 +113,11 @@
                 return;
             }
 
+            var roles = await UserManager.GetRolesAsync(user);
+
             await AuthStateProvider.MarkUserAsAuthenticatedAsync(user.Id);
             Snackbar.Add($"Welcome back, {user.FullName}!", Severity.Success);
 
-            var roles = await UserManager.GetRolesAsync(user);
             if (roles.Contains("Admin"))
             {
                 Navigation.NavigateTo("/admin/dashboard");

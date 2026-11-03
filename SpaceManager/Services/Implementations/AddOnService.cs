@@ -25,6 +25,20 @@ public class AddOnService : IAddOnService
     /// <inheritdoc />
     public async Task<IEnumerable<ServiceAddOnResponseDto>> GetAllAsync(bool? onlyAvailable = null)
     {
+        // Fail-safe: Ensure catalog is populated immediately on first access
+        if (!await _context.ServiceAddOns.AnyAsync())
+        {
+            _context.ServiceAddOns.AddRange(
+                new ServiceAddOn { Name = "Presentation Projector & Screen", Price = 280.00m, IsAvailable = true },
+                new ServiceAddOn { Name = "Dual Monitor 4K Setup", Price = 180.00m, IsAvailable = true },
+                new ServiceAddOn { Name = "Unlimited Premium Coffee & Refreshments", Price = 120.00m, IsAvailable = true },
+                new ServiceAddOn { Name = "Conference Speakerphone (Jabra)", Price = 150.00m, IsAvailable = true },
+                new ServiceAddOn { Name = "Whiteboard & Brainstorming Kit", Price = 80.00m, IsAvailable = true },
+                new ServiceAddOn { Name = "High-Speed Dedicated IP & LAN Port", Price = 140.00m, IsAvailable = true }
+            );
+            await _context.SaveChangesAsync();
+        }
+
         var query = _context.ServiceAddOns.AsNoTracking().AsQueryable();
 
         if (onlyAvailable.HasValue && onlyAvailable.Value)

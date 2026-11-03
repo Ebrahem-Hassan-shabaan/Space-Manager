@@ -43,7 +43,7 @@
             </MudItem>
 
             <MudItem xs="12" sm="4" md="3">
-                <MudNumericField T="decimal?" Label="Max Price ($ / hr)" @bind-Value="_maxPrice" Min="0" Max="500" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudNumericField T="decimal?" Label="Max Price (EGP / hr)" @bind-Value="_maxPrice" Min="0" Max="500" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
 
             <MudItem xs="12" md="3" Class="d-flex gap-2">
@@ -81,7 +81,7 @@
                                     @ws.WorkspaceTypeName
                                 </MudChip>
                                 <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="font-weight-bold">
-                                    $@ws.PricePerHour<span style="font-size: 0.75rem; font-weight: normal;"> / hr</span>
+                                    @ws.PricePerHour EGP<span style="font-size: 0.75rem; font-weight: normal;"> / hr</span>
                                 </MudText>
                             </div>
 
@@ -193,7 +193,8 @@
             { x => x.UserId, userId }
         };
 
-        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Bookings.Dialogs.CreateBookingDialog>("Reserve Workspace", parameters);
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<SpaceManager.Components.Pages.Bookings.Dialogs.CreateBookingDialog>("Reserve Workspace", parameters, options);
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled)

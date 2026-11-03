@@ -1,0 +1,42 @@
+@namespace SpaceManager.Components.Shared
+
+<div class="d-inline-flex align-center gap-1">
+    <MudRating SelectedValue="@Value"
+               SelectedValueChanged="@OnValueChanged"
+               MaxValue="5"
+               ReadOnly="@ReadOnly"
+               Color="@Color"
+               Size="@Size" />
+    @if (ShowText && Value > 0)
+    {
+        <MudText Typo="Typo.body2" Class="font-weight-bold ml-1">
+            @Value.ToString("0.0")
+        </MudText>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Value { get; set; } = 5;
+
+    [Parameter]
+    public EventCallback<int> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; } = true;
+
+    [Parameter]
+    public bool ShowText { get; set; } = false;
+
+    [Parameter]
+    public Color Color { get; set; } = Color.Warning;
+
+    [Parameter]
+    public Size Size { get; set; } = Size.Medium;
+
+    private async Task OnValueChanged(int val)
+    {
+        Value = val;
+        await ValueChanged.InvokeAsync(val);
+    }
+}
